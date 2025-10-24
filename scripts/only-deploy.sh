@@ -1,7 +1,7 @@
 #!/bin/bash
 # ================================================================
-# BeMind API Deployment Script
-# Pulls images from ACR, then deploys to AKS
+# BeMind API Deployment Script (No Docker Required)
+# Deploys directly to AKS - images pulled from ACR by Kubernetes
 # ================================================================
 
 set -e  # Exit on error
@@ -17,7 +17,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}BeMind API Deployment${NC}"
+echo -e "${GREEN}BeMind API Deployment to AKS${NC}"
 echo -e "${GREEN}========================================${NC}"
 
 # Validate required environment variables
@@ -38,52 +38,81 @@ az aks get-credentials \
     --name "$AKS_CLUSTER_NAME" \
     --overwrite-existing
 
-# Step 3: Login to ACR
-echo -e "${YELLOW}Step 3: Logging into ACR...${NC}"
-az acr login --name "$ACR_NAME"
+# Step 3: Verify ACR access from AKS
+echo -e "${YELLOW}Step 3: Verifying ACR integration with AKS...${NC}"
+ACR_ID=$(az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
+echo -e "${GREEN}✓ ACR found: $ACR_NAME${NC}"
 
-# Step 4: Pull latest images
-echo -e "${YELLOW}Step 4: Pulling latest images from ACR...${NC}"
-docker pull "${ACR_LOGIN_SERVER}/bemind-api:${CURRENT_VERSION}"
-docker pull "${ACR_LOGIN_SERVER}/bemind-api:latest"
+# Step 4: Attach ACR to AKS (if not already attached)
+echo -e "${YELLOW}Step 4: Ensuring AKS can pull from ACR...${NC}"
+az aks update \
+    --name "$AKS_CLUSTER_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --attach-acr "$ACR_NAME" 2>/dev/null || echo "ACR already attached"
 
-echo -e "${GREEN}✓ Images pulled successfully${NC}"
+# Step 5: Verify image exists in ACR
+echo -e "${YELLOW}Step 5: Verifying image exists in ACR...${NC}"
+IMAGE_EXISTS=$(az acr repository show \
+    --name "$ACR_NAME" \
+    --image "bemind-api:${CURRENT_VERSION}" \
+    --query "name" -o tsv 2>/dev/null || echo "")
 
-# Step 5: Create namespace if it doesn't exist
-echo -e "${YELLOW}Step 5: Creating namespace...${NC}"
-kubectl apply -f ../k8s/namespace.yaml
-
-# Step 6: Create secrets (if they don't exist)
-echo -e "${YELLOW}Step 6: Checking secrets...${NC}"
-if ! kubectl get secret bemind-secrets -n bemindindexer > /dev/null 2>&1; then
-    echo -e "${YELLOW}Creating secrets...${NC}"
-    kubectl apply -f ../k8s/secrets.yaml
+if [[ -z "$IMAGE_EXISTS" ]]; then
+    echo -e "${RED}Warning: Image bemind-api:${CURRENT_VERSION} not found in ACR${NC}"
+    echo -e "${YELLOW}Available images:${NC}"
+    az acr repository list --name "$ACR_NAME" -o table
+    echo -e "${YELLOW}Please build and push the image first, or update CURRENT_VERSION in bemind-env.sh${NC}"
+    read -p "Continue anyway? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
 else
-    echo -e "${GREEN}✓ Secrets already exist${NC}"
+    echo -e "${GREEN}✓ Image found: bemind-api:${CURRENT_VERSION}${NC}"
 fi
 
-# Step 7: Apply ConfigMap
-echo -e "${YELLOW}Step 7: Applying ConfigMap...${NC}"
+# Step 6: Create namespace if it doesn't exist
+echo -e "${YELLOW}Step 6: Creating namespace...${NC}"
+kubectl apply -f ../k8s/namespace.yaml
+
+# Step 7: Create/Update secrets
+echo -e "${YELLOW}Step 7: Applying secrets...${NC}"
+kubectl apply -f ../k8s/secrets.yaml
+
+# Step 8: Apply ConfigMap
+echo -e "${YELLOW}Step 8: Applying ConfigMap...${NC}"
 kubectl apply -f ../k8s/configmap.yaml
 
-# Step 8: Apply RBAC
-echo -e "${YELLOW}Step 8: Applying RBAC...${NC}"
+# Step 9: Apply RBAC
+echo -e "${YELLOW}Step 9: Applying RBAC...${NC}"
 kubectl apply -f ../k8s/rbac.yaml
 kubectl apply -f ../k8s/serviceaccount.yaml
 
-# Step 9: Deploy API
-echo -e "${YELLOW}Step 9: Deploying API...${NC}"
+# Step 10: Deploy API
+echo -e "${YELLOW}Step 10: Deploying API...${NC}"
 kubectl apply -f ../k8s/api-deployment.yaml
 
-# Step 10: Wait for rollout
-echo -e "${YELLOW}Step 10: Waiting for deployment to complete...${NC}"
+# Step 11: Wait for rollout
+echo -e "${YELLOW}Step 11: Waiting for deployment to complete...${NC}"
 kubectl rollout status deployment/bemind-api -n bemindindexer --timeout=5m
 
-# Step 11: Check deployment status
-echo -e "${YELLOW}Step 11: Checking deployment status...${NC}"
+# Step 12: Check deployment status
+echo -e "${YELLOW}Step 12: Checking deployment status...${NC}"
+echo -e "${GREEN}Pods:${NC}"
 kubectl get pods -n bemindindexer -l app=bemind-api
+
+echo -e "${GREEN}Service:${NC}"
 kubectl get svc -n bemindindexer -l app=bemind-api
+
+echo -e "${GREEN}HPA:${NC}"
 kubectl get hpa -n bemindindexer
+
+# Step 13: Get pod logs (last 10 lines)
+echo -e "${YELLOW}Step 13: Recent pod logs:${NC}"
+POD_NAME=$(kubectl get pods -n bemindindexer -l app=bemind-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+if [[ -n "$POD_NAME" ]]; then
+    kubectl logs "$POD_NAME" -n bemindindexer --tail=10 || echo "No logs available yet"
+fi
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Deployment completed successfully!${NC}"
@@ -91,4 +120,9 @@ echo -e "${GREEN}========================================${NC}"
 
 # Get service endpoint
 SERVICE_IP=$(kubectl get svc bemind-api-service -n bemindindexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "Pending...")
-echo -e "${GREEN}API Service Endpoint: http://${SERVICE_IP}:5002${NC}"
+if [[ "$SERVICE_IP" != "Pending..." ]]; then
+    echo -e "${GREEN}API Service Endpoint: http://${SERVICE_IP}:5002${NC}"
+else
+    echo -e "${YELLOW}Service IP is still pending. Run this to check later:${NC}"
+    echo -e "${YELLOW}kubectl get svc bemind-api-service -n bemindindexer${NC}"
+fi
