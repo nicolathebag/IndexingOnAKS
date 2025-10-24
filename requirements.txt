@@ -14,7 +14,7 @@ cryptography==41.0.7
 
 # Kubernetes Client
 kubernetes==28.1.0
-urllib3==2.1.0
+# urllib3==2.1.0  # Let kubernetes manage this dependency
 
 # Azure SDKs - Official Microsoft packages
 azure-storage-blob==12.19.0
@@ -42,3 +42,32 @@ python-dateutil==2.8.2
 
 # Performance
 cachetools==5.3.2
+
+# Core dependencies
+Flask==3.0.0
+Flask-CORS==4.0.0
+python-dotenv==1.0.0
+
+# Azure SDK
+azure-storage-blob==12.19.0
+azure-core==1.29.5
+azure-identity==1.15.0
+
+# OpenAI
+openai==1.6.1
+
+# Kubernetes client
+kubernetes==28.1.0
+
+# PDF processing
+pypdf==3.17.4
+
+# Remove or comment out the conflicting urllib3 version
+# urllib3==2.1.0  # Let kubernetes manage this dependency
+
+# JWT
+PyJWT==2.8.0
+
+# Other dependencies
+requests>=2.31.0
+certifi>=2023.11.17
