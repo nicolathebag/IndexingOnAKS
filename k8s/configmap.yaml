@@ -7,7 +7,16 @@ metadata:
     app: bemind
     component: config
 data:
-  # API Configuration
+  LOG_LEVEL: "INFO"
+  MAX_WORKERS: "4"
+  AZURE_STORAGE_ENDPOINT: "https://avadatastore.blob.core.windows.net"
+  AZURE_SEARCH_ENDPOINT: "https://be-tt-ava-aisearch-bechtle.search.windows.net"
+  AZURE_OPENAI_ENDPOINT: "https://be-tt-ava-openaieu.openai.azure.com/"
+  OPENAI_API_VERSION: "2024-02-01"
+  SEARCH_API_VERSION: "2023-11-01"
+  OPENAI_GPT4_DEPLOYMENT: "gpt-4"
+  OPENAI_EMBEDDING_DEPLOYMENT: "text-embedding-ada-002"
+   # API Configuration
   api_port: "5002"
   environment: "production"
   log_level: "INFO"

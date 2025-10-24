@@ -151,11 +151,13 @@ spec:
                 configMapKeyRef:
                   name: bemind-config
                   key: LOG_LEVEL
+                  optional: false
             - name: MAX_WORKERS
               valueFrom:
                 configMapKeyRef:
                   name: bemind-config
                   key: MAX_WORKERS
+                  optional: false
           
           resources:
             requests:
