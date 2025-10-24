@@ -5,6 +5,7 @@ set -e
 # ================================================================
 # Azure Container Registry Setup Script
 # Creates ACR with recommended production settings
+# Idempotent - safe to run multiple times
 # ================================================================
 
 # Get the directory where this script is located
@@ -25,10 +26,11 @@ echo "║         Azure Container Registry Setup                        ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 
 # Check if ACR exists
+echo ""
+echo "Checking if ACR exists..."
 ACR_EXISTS=$(az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" 2>/dev/null || echo "")
 
 if [ -z "$ACR_EXISTS" ]; then
-    echo ""
     echo "Creating Azure Container Registry..."
     
     az acr create \
@@ -43,34 +45,24 @@ else
     echo "✓ ACR already exists: $ACR_NAME"
 fi
 
-# Enable Azure Defender for container registries (Security)
+# Check and attach ACR to AKS (only if not already attached)
 echo ""
-echo "Configuring ACR security settings..."
+echo "Checking ACR attachment to AKS..."
 
-# Enable content trust (Image signing)
-az acr config content-trust update \
-    --registry "$ACR_NAME" \
-    --status enabled 2>/dev/null || echo "Note: Content trust may require Premium SKU"
-
-# Enable vulnerability scanning
-az acr config retention update \
-    --registry "$ACR_NAME" \
-    --status enabled \
-    --days 30 \
-    --type UntaggedManifests 2>/dev/null || echo "Note: Retention policies may require Premium SKU"
-
-echo "✓ ACR security configured"
-
-# Configure AKS to pull from ACR using managed identity
-echo ""
-echo "Attaching ACR to AKS cluster..."
-
-az aks update \
+# Try to attach and capture the output
+ATTACH_OUTPUT=$(az aks update \
     --resource-group "$RESOURCE_GROUP" \
     --name "$AKS_CLUSTER_NAME" \
-    --attach-acr "$ACR_NAME"
+    --attach-acr "$ACR_NAME" 2>&1 || echo "")
 
-echo "✓ ACR attached to AKS with managed identity"
+if echo "$ATTACH_OUTPUT" | grep -q "role assignment already exists\|is already attached"; then
+    echo "✓ ACR already attached to AKS (skipping)"
+elif echo "$ATTACH_OUTPUT" | grep -q "error\|Error"; then
+    echo "⚠ Warning: Could not verify ACR attachment"
+    echo "$ATTACH_OUTPUT"
+else
+    echo "✓ ACR attached to AKS with managed identity"
+fi
 
 # Get ACR login server
 export ACR_LOGIN_SERVER=$(az acr show \
@@ -83,8 +75,7 @@ echo "════════════════════════�
 echo "ACR Configuration:"
 echo "  Name:         $ACR_NAME"
 echo "  Login Server: $ACR_LOGIN_SERVER"
-echo "  SKU:          Standard"
-echo "  Security:     Enabled (Content Trust, Vulnerability Scanning)"
+echo "  Status:       Ready for use"
 echo "════════════════════════════════════════════════════════════════"
 
 # Update environment file
