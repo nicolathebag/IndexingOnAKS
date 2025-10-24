@@ -1,30 +1,61 @@
+# ================================================================
+# Role-Based Access Control (RBAC) Configuration
+# Grants permissions for the indexer to create jobs
+# ================================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bemind-indexer-sa
+  namespace: bemind
+  labels:
+    app: bemind
+    component: indexer
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: your-namespace
-  name: your-role-name
+  name: bemind-indexer-role
+  namespace: bemind
+  labels:
+    app: bemind
+    component: indexer
 rules:
-  - apiGroups: [""]
-    resources: ["pods", "pods/log"]
-    verbs: ["get", "watch", "list"]
-  - apiGroups: ["apps"]
-    resources: ["deployments", "replicasets"]
-    verbs: ["get", "watch", "list", "create", "update", "delete"]
+  # Allow creating and managing jobs
   - apiGroups: ["batch"]
-    resources: ["jobs", "cronjobs"]
-    verbs: ["get", "watch", "list", "create", "update", "delete"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  
+  # Allow reading job status
+  - apiGroups: ["batch"]
+    resources: ["jobs/status"]
+    verbs: ["get", "list"]
+  
+  # Allow reading pods (for job monitoring)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  
+  # Allow reading pod logs
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: your-role-binding-name
-  namespace: your-namespace
+  name: bemind-indexer-rolebinding
+  namespace: bemind
+  labels:
+    app: bemind
+    component: indexer
 subjects:
   - kind: ServiceAccount
-    name: your-service-account-name
-    namespace: your-namespace
+    name: bemind-indexer-sa
+    namespace: bemind
 roleRef:
   kind: Role
-  name: your-role-name
+  name: bemind-indexer-role
   apiGroup: rbac.authorization.k8s.io

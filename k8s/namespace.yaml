@@ -1,6 +1,8 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: k8s-indexer-deployment
+  name: bemind
   labels:
-    name: k8s-indexer-deployment
+    name: bemind
+    environment: production
+    app: bemind
