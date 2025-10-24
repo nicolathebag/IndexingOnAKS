@@ -1,25 +1,54 @@
 #!/bin/bash
 
-# Cleanup script for Kubernetes resources
+set -e
 
-# Define the namespace
-NAMESPACE="your-namespace"
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Delete the API deployment and service
-kubectl delete deployment api-deployment -n $NAMESPACE
-kubectl delete service api-service -n $NAMESPACE
+# Source environment
+if [ -f "$HOME/bemind-env.sh" ]; then
+    source "$HOME/bemind-env.sh"
+elif [ -f "$SCRIPT_DIR/bemind-env.sh" ]; then
+    source "$SCRIPT_DIR/bemind-env.sh"
+else
+    echo "Error: bemind-env.sh not found"
+    exit 1
+fi
 
-# Delete the indexer cron job
-kubectl delete cronjob indexer-cronjob -n $NAMESPACE
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║              BeMind Cleanup Script                            ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
 
-# Delete the ConfigMap and Secrets
-kubectl delete configmap your-configmap -n $NAMESPACE
-kubectl delete secret your-secret -n $NAMESPACE
+echo ""
+echo "⚠️  WARNING: This will delete all BeMind resources from AKS"
+echo ""
+echo "Resources to be deleted:"
+echo "  - Namespace: $NAMESPACE"
+echo "  - All deployments, services, pods in namespace"
+echo "  - All secrets and configmaps in namespace"
+echo "  - All jobs in namespace"
+echo ""
 
-# Delete the RBAC resources
-kubectl delete -f k8s/rbac.yaml -n $NAMESPACE
+read -p "Are you sure? Type 'DELETE' to confirm: " CONFIRM
 
-# Optionally, delete the namespace if no longer needed
-# kubectl delete namespace $NAMESPACE
+if [ "$CONFIRM" != "DELETE" ]; then
+    echo "Cleanup cancelled"
+    exit 0
+fi
 
-echo "Cleanup completed."
+echo ""
+echo "Connecting to AKS..."
+az aks get-credentials \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$AKS_CLUSTER_NAME" \
+    --overwrite-existing
+
+echo ""
+echo "Deleting namespace and all resources..."
+kubectl delete namespace "$NAMESPACE" --ignore-not-found=true --timeout=300s
+
+echo ""
+echo "✓ Cleanup completed"
+echo ""
+echo "To redeploy:"
+echo "  bash $SCRIPT_DIR/deploy-production.sh v1.0.0"
