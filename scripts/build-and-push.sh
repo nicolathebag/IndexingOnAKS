@@ -4,7 +4,7 @@ set -e
 
 # ================================================================
 # Build and Push Docker Images to ACR (Azure Cloud Shell Compatible)
-# Uses ACR Build Tasks instead of local Docker
+# Checks if images exist before rebuilding - optimized for speed
 # ================================================================
 
 # Get the directory where this script is located
@@ -24,6 +24,7 @@ fi
 # Parse arguments
 VERSION="${1:-v1.0.0}"
 BUILD_NUMBER="${2:-$(date +%Y%m%d%H%M%S)}"
+FORCE_BUILD="${3:-false}"
 
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║         Building and Pushing to ACR (Cloud Shell)             ║"
@@ -34,80 +35,114 @@ echo "Build Configuration:"
 echo "  Version:      $VERSION"
 echo "  Build Number: $BUILD_NUMBER"
 echo "  ACR:          $ACR_LOGIN_SERVER"
-echo "  Project Root: $PROJECT_ROOT"
-echo "  Method:       Azure ACR Build Tasks (Cloud Shell Compatible)"
+echo "  Force Build:  $FORCE_BUILD"
 echo ""
 
 cd "$PROJECT_ROOT"
 
-# Login to ACR (token-based for Cloud Shell)
-echo "Step 1/3: Authenticating with ACR..."
+# Login to ACR
+echo "Step 1/5: Authenticating with ACR..."
 az acr login --name "$ACR_NAME" --expose-token > /dev/null 2>&1 || az acr login --name "$ACR_NAME"
 echo "✓ Authenticated with ACR"
 
-# Build and push API image using ACR Build Tasks
+# Function to check if image exists in ACR
+check_image_exists() {
+    local image_name=$1
+    local tag=$2
+    
+    az acr repository show-tags \
+        --name "$ACR_NAME" \
+        --repository "$image_name" \
+        --output tsv 2>/dev/null | grep -q "^${tag}$"
+    return $?
+}
+
+# Check API image
 echo ""
-echo "Step 2/3: Building and pushing API image using ACR Build..."
+echo "Step 2/5: Checking if API image exists..."
+API_EXISTS=false
+if check_image_exists "bemind-api" "$VERSION"; then
+    echo "✓ Image bemind-api:$VERSION already exists in ACR"
+    API_EXISTS=true
+else
+    echo "ℹ Image bemind-api:$VERSION not found in ACR"
+fi
 
-az acr build \
-    --registry "$ACR_NAME" \
-    --image "bemind-api:${VERSION}" \
-    --image "bemind-api:${VERSION}-${BUILD_NUMBER}" \
-    --image "bemind-api:latest" \
-    --file "$PROJECT_ROOT/Dockerfile.api" \
-    --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-    --build-arg VERSION="${VERSION}" \
-    --build-arg BUILD_NUMBER="${BUILD_NUMBER}" \
-    "$PROJECT_ROOT"
-
-echo "✓ API image built and pushed"
-
-# Build and push Indexer image using ACR Build Tasks
+# Check Indexer image
 echo ""
-echo "Step 3/3: Building and pushing Indexer image using ACR Build..."
+echo "Step 3/5: Checking if Indexer image exists..."
+INDEXER_EXISTS=false
+if check_image_exists "bemind-indexer" "$VERSION"; then
+    echo "✓ Image bemind-indexer:$VERSION already exists in ACR"
+    INDEXER_EXISTS=true
+else
+    echo "ℹ Image bemind-indexer:$VERSION not found in ACR"
+fi
 
-az acr build \
-    --registry "$ACR_NAME" \
-    --image "bemind-indexer:${VERSION}" \
-    --image "bemind-indexer:${VERSION}-${BUILD_NUMBER}" \
-    --image "bemind-indexer:latest" \
-    --file "$PROJECT_ROOT/Dockerfile.indexer" \
-    --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-    --build-arg VERSION="${VERSION}" \
-    --build-arg BUILD_NUMBER="${BUILD_NUMBER}" \
-    "$PROJECT_ROOT"
-
-echo "✓ Indexer image built and pushed"
-
-# Verify images in ACR
+# Build API image if needed
 echo ""
-echo "Verifying images in ACR..."
-echo ""
-echo "API Repository:"
-az acr repository show-tags \
-    --name "$ACR_NAME" \
-    --repository bemind-api \
-    --orderby time_desc \
-    --output table
+echo "Step 4/5: Processing API image..."
+if [ "$API_EXISTS" = true ] && [ "$FORCE_BUILD" != "true" ]; then
+    echo "⏭ Skipping API build (image already exists)"
+    echo "  Use '$0 $VERSION auto true' to force rebuild"
+else
+    echo "Building and pushing API image..."
+    az acr build \
+        --registry "$ACR_NAME" \
+        --image "bemind-api:${VERSION}" \
+        --image "bemind-api:${VERSION}-${BUILD_NUMBER}" \
+        --image "bemind-api:latest" \
+        --file "$PROJECT_ROOT/Dockerfile.api" \
+        --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+        --build-arg VERSION="${VERSION}" \
+        --build-arg BUILD_NUMBER="${BUILD_NUMBER}" \
+        "$PROJECT_ROOT"
+    echo "✓ API image built and pushed"
+fi
 
+# Build Indexer image if needed
 echo ""
-echo "Indexer Repository:"
-az acr repository show-tags \
-    --name "$ACR_NAME" \
-    --repository bemind-indexer \
-    --orderby time_desc \
-    --output table
+echo "Step 5/5: Processing Indexer image..."
+if [ "$INDEXER_EXISTS" = true ] && [ "$FORCE_BUILD" != "true" ]; then
+    echo "⏭ Skipping Indexer build (image already exists)"
+    echo "  Use '$0 $VERSION auto true' to force rebuild"
+else
+    echo "Building and pushing Indexer image..."
+    az acr build \
+        --registry "$ACR_NAME" \
+        --image "bemind-indexer:${VERSION}" \
+        --image "bemind-indexer:${VERSION}-${BUILD_NUMBER}" \
+        --image "bemind-indexer:latest" \
+        --file "$PROJECT_ROOT/Dockerfile.indexer" \
+        --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+        --build-arg VERSION="${VERSION}" \
+        --build-arg BUILD_NUMBER="${BUILD_NUMBER}" \
+        "$PROJECT_ROOT"
+    echo "✓ Indexer image built and pushed"
+fi
 
+# Display results
 echo ""
 echo "════════════════════════════════════════════════════════════════"
-echo "Images pushed successfully:"
+if [ "$API_EXISTS" = true ] && [ "$INDEXER_EXISTS" = true ] && [ "$FORCE_BUILD" != "true" ]; then
+    echo "All images already exist in ACR - no build needed"
+    echo ""
+    echo "Existing images:"
+elif [ "$API_EXISTS" = true ] || [ "$INDEXER_EXISTS" = true ]; then
+    echo "Partial build completed (some images already existed)"
+    echo ""
+    echo "Images in ACR:"
+else
+    echo "Build completed successfully"
+    echo ""
+    echo "Images pushed to ACR:"
+fi
+
 echo "  ${ACR_LOGIN_SERVER}/bemind-api:${VERSION}"
-echo "  ${ACR_LOGIN_SERVER}/bemind-api:${VERSION}-${BUILD_NUMBER}"
 echo "  ${ACR_LOGIN_SERVER}/bemind-indexer:${VERSION}"
-echo "  ${ACR_LOGIN_SERVER}/bemind-indexer:${VERSION}-${BUILD_NUMBER}"
 echo "════════════════════════════════════════════════════════════════"
 
-# Update deployment files with new version
+# Update deployment files with version
 echo ""
 echo "Updating Kubernetes manifests with new image versions..."
 
