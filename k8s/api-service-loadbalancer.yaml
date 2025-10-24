@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bemind-api-service
+  namespace: default
+  labels:
+    app: bemind-api
+    component: api
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /health
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-interval: "5"
+spec:
+  type: LoadBalancer
+  selector:
+    app: bemind-api
+    component: api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80  # External port
+      targetPort: 5002  # Internal Flask app port
+  sessionAffinity: ClientIP  # Maintain session affinity for polling
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
