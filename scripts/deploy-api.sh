@@ -17,7 +17,7 @@ if [[ -f "$CREDENTIALS_FILE" ]]; then
     source "$CREDENTIALS_FILE"
 else
     echo -e "${YELLOW}Warning: $CREDENTIALS_FILE not found${NC}"
-    echo -e "${YELLOW}Please create this file with your Azure credentials${NC}"
+    echo -e "${YELLOW}Using placeholder values - please create credentials file${NC}"
 fi
 
 # Colors for output
@@ -38,8 +38,12 @@ fi
 
 # Step 1: Login to Azure (if not already logged in)
 echo -e "${YELLOW}Step 1: Checking Azure login...${NC}"
-az account show > /dev/null 2>&1 || az login
+if ! az account show > /dev/null 2>&1; then
+    echo -e "${YELLOW}Not logged in to Azure. Please login...${NC}"
+    az login
+fi
 az account set --subscription "$SUBSCRIPTION_ID"
+echo -e "${GREEN}✓ Logged in to Azure${NC}"
 
 # Step 2: Get AKS credentials
 echo -e "${YELLOW}Step 2: Getting AKS credentials...${NC}"
@@ -47,6 +51,16 @@ az aks get-credentials \
     --resource-group "$RESOURCE_GROUP" \
     --name "$AKS_CLUSTER_NAME" \
     --overwrite-existing
+echo -e "${GREEN}✓ AKS credentials obtained${NC}"
+
+# Verify kubectl connection
+echo -e "${YELLOW}Verifying kubectl connection...${NC}"
+if ! kubectl cluster-info --request-timeout=10s > /dev/null 2>&1; then
+    echo -e "${RED}Error: Cannot connect to Kubernetes cluster${NC}"
+    echo -e "${YELLOW}Please ensure you're logged in and have access to the cluster${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Connected to Kubernetes cluster${NC}"
 
 # Step 3: Verify image exists in ACR
 echo -e "${YELLOW}Step 3: Verifying image exists in ACR...${NC}"
@@ -72,29 +86,27 @@ fi
 # Step 4: Create secrets from credentials file
 echo -e "${YELLOW}Step 4: Creating Kubernetes secrets from credentials...${NC}"
 
-# Validate required credentials
-if [[ -z "$AZURE_OPENAI_KEY" ]]; then
-    echo -e "${RED}Error: AZURE_OPENAI_KEY not set in $CREDENTIALS_FILE${NC}"
-    exit 1
+# Set default values if not provided
+AZURE_OPENAI_KEY="${AZURE_OPENAI_KEY:-placeholder-openai-key}"
+AZURE_SEARCH_KEY="${AZURE_SEARCH_KEY:-placeholder-search-key}"
+AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING:-placeholder-connection-string}"
+JWT_SECRET="${JWT_SECRET:-default-jwt-secret-change-in-production}"
+
+# Warn if using placeholder values
+if [[ "$AZURE_OPENAI_KEY" == "placeholder-openai-key" ]]; then
+    echo -e "${YELLOW}Warning: Using placeholder for AZURE_OPENAI_KEY${NC}"
+    echo -e "${YELLOW}Please set credentials in ~/.bemind-credentials.env${NC}"
 fi
 
-if [[ -z "$AZURE_SEARCH_KEY" ]]; then
-    echo -e "${RED}Error: AZURE_SEARCH_KEY not set in $CREDENTIALS_FILE${NC}"
-    exit 1
-fi
-
-if [[ -z "$AZURE_STORAGE_CONNECTION_STRING" ]]; then
-    echo -e "${RED}Error: AZURE_STORAGE_CONNECTION_STRING not set in $CREDENTIALS_FILE${NC}"
-    exit 1
-fi
-
-# Check if secrets already exist
-if kubectl get secret bemind-secrets -n default >/dev/null 2>&1; then
+# Check if secrets already exist (with timeout)
+SECRET_EXISTS=$(kubectl get secret bemind-secrets -n default --request-timeout=5s 2>/dev/null || echo "not-found")
+if [[ "$SECRET_EXISTS" != "not-found" ]]; then
     echo -e "${YELLOW}Secret 'bemind-secrets' already exists. Deleting and recreating...${NC}"
-    kubectl delete secret bemind-secrets -n default
+    kubectl delete secret bemind-secrets -n default --timeout=10s
 fi
 
 # Create secret with actual values from credentials file
+echo -e "${YELLOW}Creating secret 'bemind-secrets'...${NC}"
 kubectl create secret generic bemind-secrets \
     -n default \
     --from-literal=AZURE_OPENAI_ENDPOINT="${OPENAI_ENDPOINT}" \
@@ -108,7 +120,7 @@ kubectl create secret generic bemind-secrets \
     --from-literal=AZURE_STORAGE_ACCOUNT_NAME="${STORAGE_ACCOUNT_NAME}" \
     --from-literal=AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}" \
     --from-literal=AZURE_STORAGE_ENDPOINT="${STORAGE_ENDPOINT}" \
-    --from-literal=JWT_SECRET="${JWT_SECRET:-default-jwt-secret-change-in-production}"
+    --from-literal=JWT_SECRET="${JWT_SECRET}"
 
 echo -e "${GREEN}✓ Secret 'bemind-secrets' created successfully${NC}"
 
@@ -159,7 +171,7 @@ echo "deployment=bemind-api" >> "$TRACKING_FILE"
 echo "service=bemind-api-service" >> "$TRACKING_FILE"
 echo "hpa=bemind-api-hpa" >> "$TRACKING_FILE"
 echo "configmap=bemind-app-config" >> "$TRACKING_FILE"
-echo "secret=my-secret" >> "$TRACKING_FILE"
+echo "secret=bemind-secrets" >> "$TRACKING_FILE"
 echo "serviceaccount=bemind-indexer-sa,bemind-worker" >> "$TRACKING_FILE"
 echo "role=bemind-indexer-role" >> "$TRACKING_FILE"
 echo "rolebinding=bemind-indexer-rolebinding" >> "$TRACKING_FILE"
