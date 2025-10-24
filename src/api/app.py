@@ -1,22 +1,23 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from flask import Flask
+from flask_cors import CORS
 from src.api.routes import health, indices
 
-app = FastAPI()
+app = Flask(__name__)
 
-# CORS middleware configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Adjust this as necessary for your application
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS configuration
+CORS(app, 
+     origins=["*"],  # Adjust this as necessary for your application
+     supports_credentials=True,
+     allow_headers=["*"],
+     methods=["*"])
 
-# Include the routes
-app.include_router(health.router)
-app.include_router(indices.router)
+# Register blueprints (Flask equivalent of FastAPI routers)
+app.register_blueprint(health.bp)
+app.register_blueprint(indices.bp)
 
-@app.get("/")
+@app.route("/")
 def read_root():
     return {"message": "Welcome to the API!"}
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5002, debug=False)

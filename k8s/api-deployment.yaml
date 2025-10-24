@@ -1,6 +1,6 @@
 # ================================================================
 # BeMind API Deployment with High Availability
-# Includes podAntiAffinity to comply with Azure Policy
+# Flask application with Gunicorn WSGI server
 # ================================================================
 
 apiVersion: apps/v1
@@ -34,7 +34,6 @@ spec:
         prometheus.io/port: "5002"
         prometheus.io/path: "/metrics"
     spec:
-      # Anti-affinity to spread pods across different nodes (Azure Policy requirement)
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -64,18 +63,37 @@ spec:
           image: devbemindcontainerregistryse.azurecr.io/bemind-api:v1.0.0
           imagePullPolicy: Always
           
+          # Use gunicorn for Flask (WSGI)
+          command: ["gunicorn"]
+          args: 
+            - "--bind"
+            - "0.0.0.0:5002"
+            - "--workers"
+            - "2"
+            - "--threads"
+            - "4"
+            - "--timeout"
+            - "120"
+            - "--access-logfile"
+            - "-"
+            - "--error-logfile"
+            - "-"
+            - "src.api.app:app"
+          
           ports:
             - name: http
               containerPort: 5002
               protocol: TCP
           
           env:
-            - name: FLASK_APP
-              value: "api/app.py"
-            - name: FLASK_ENV
-              value: "production"
             - name: PYTHONUNBUFFERED
               value: "1"
+            - name: PYTHONPATH
+              value: "/app"
+            - name: FLASK_APP
+              value: "src.api.app:app"
+            - name: FLASK_ENV
+              value: "production"
             
             # Azure OpenAI from Secret
             - name: AZURE_OPENAI_ENDPOINT
@@ -151,13 +169,13 @@ spec:
                 configMapKeyRef:
                   name: bemind-config
                   key: LOG_LEVEL
-                  optional: false
+                  optional: true
             - name: MAX_WORKERS
               valueFrom:
                 configMapKeyRef:
                   name: bemind-config
                   key: MAX_WORKERS
-                  optional: false
+                  optional: true
           
           resources:
             requests:
