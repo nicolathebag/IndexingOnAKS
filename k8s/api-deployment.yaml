@@ -1,5 +1,8 @@
-# filepath: k8s/api-deployment.yaml
----
+# ================================================================
+# BeMind API Deployment with High Availability
+# Includes podAntiAffinity to comply with Azure Policy
+# ================================================================
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,22 +10,31 @@ metadata:
   namespace: bemind
   labels:
     app: bemind-api
+    component: api
     version: v1.0.0
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: bemind-api
+      component: api
   template:
     metadata:
       labels:
         app: bemind-api
+        component: api
         version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5002"
+        prometheus.io/path: "/metrics"
     spec:
-      serviceAccountName: bemind-indexer-sa
-      
-      # Pod Anti-Affinity - Required by Azure Policy
-      # Ensures pods are distributed across different nodes
+      # Anti-affinity to spread pods across different nodes (Azure Policy requirement)
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -35,6 +47,17 @@ spec:
                       values:
                         - bemind-api
                 topologyKey: kubernetes.io/hostname
+            - weight: 50
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - bemind-api
+                topologyKey: topology.kubernetes.io/zone
+      
+      serviceAccountName: bemind-indexer-sa
       
       containers:
         - name: api
@@ -47,7 +70,14 @@ spec:
               protocol: TCP
           
           env:
-            # Azure OpenAI Configuration
+            - name: FLASK_APP
+              value: "api/app.py"
+            - name: FLASK_ENV
+              value: "production"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            
+            # Azure OpenAI from Secret
             - name: AZURE_OPENAI_ENDPOINT
               valueFrom:
                 secretKeyRef:
@@ -74,7 +104,7 @@ spec:
                   name: azure-openai-secret
                   key: AZURE_OPENAI_GPT4_DEPLOYMENT
             
-            # Azure Cognitive Search Configuration
+            # Azure Search from Secret
             - name: AZURE_SEARCH_ENDPOINT
               valueFrom:
                 secretKeyRef:
@@ -91,7 +121,7 @@ spec:
                   name: azure-search-secret
                   key: AZURE_SEARCH_API_VERSION
             
-            # Azure Storage Configuration
+            # Azure Storage from Secret
             - name: AZURE_STORAGE_ACCOUNT_NAME
               valueFrom:
                 secretKeyRef:
@@ -108,22 +138,24 @@ spec:
                   name: azure-storage-secret
                   key: AZURE_STORAGE_ENDPOINT
             
-            # API Secrets
+            # JWT Secret
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: api-secrets
                   key: JWT_SECRET
             
-            # Application Configuration
-            - name: FLASK_ENV
-              value: "production"
+            # ConfigMap values
             - name: LOG_LEVEL
-              value: "INFO"
-            - name: NAMESPACE
               valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+                configMapKeyRef:
+                  name: bemind-app-config
+                  key: LOG_LEVEL
+            - name: MAX_WORKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: bemind-app-config
+                  key: MAX_WORKERS
           
           resources:
             requests:
@@ -131,7 +163,7 @@ spec:
               cpu: "250m"
             limits:
               memory: "1Gi"
-              cpu: "500m"
+              cpu: "1000m"
           
           livenessProbe:
             httpGet:
@@ -150,6 +182,15 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
+          
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
 
 ---
 apiVersion: v1
@@ -159,15 +200,18 @@ metadata:
   namespace: bemind
   labels:
     app: bemind-api
+    component: api
 spec:
   type: ClusterIP
   selector:
     app: bemind-api
+    component: api
   ports:
     - name: http
+      protocol: TCP
       port: 5002
       targetPort: 5002
-      protocol: TCP
+  sessionAffinity: None
 
 ---
 apiVersion: autoscaling/v2
