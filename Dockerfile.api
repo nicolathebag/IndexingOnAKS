@@ -1,7 +1,7 @@
 # filepath: Dockerfile.api
 # ================================================================
 # BeMind API - Production Dockerfile
-# Multi-stage build for optimized image size
+# Multi-stage build for optimized Flask application
 # ================================================================
 
 # Stage 1: Build dependencies
@@ -28,7 +28,7 @@ FROM python:3.11-slim
 
 LABEL maintainer="BeMind Team"
 LABEL version="1.0"
-LABEL description="BeMind API for managing indexing jobs on AKS"
+LABEL description="BeMind Flask API for managing indexing jobs on AKS"
 
 WORKDIR /app
 
@@ -42,9 +42,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy application code
-COPY src/api/ /app/
-COPY src/utils/ /app/utils/
+# Copy application code - preserve directory structure
+COPY src/ /app/src/
+COPY requirements.txt /app/
 
 # Create non-root user for security
 RUN groupadd -r appuser && \
@@ -56,7 +56,10 @@ RUN groupadd -r appuser && \
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=5002
+    PYTHONPATH=/app \
+    PORT=5002 \
+    FLASK_APP=src.api.app:app \
+    FLASK_ENV=production
 
 USER appuser
 
@@ -67,5 +70,13 @@ EXPOSE 5002
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:5002/health || exit 1
 
-# Run with gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:5002", "--workers", "4", "--threads", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+# Run with gunicorn for Flask production
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:5002", \
+     "--workers", "2", \
+     "--threads", "4", \
+     "--timeout", "120", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--log-level", "info", \
+     "src.api.app:app"]
