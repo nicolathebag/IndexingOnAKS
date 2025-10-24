@@ -7,7 +7,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bemind-api
-  namespace: bemindindexer
+  namespace: default
   labels:
     app: bemind-api
     component: api
@@ -194,7 +194,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: bemind-api-service
-  namespace: bemindindexer
+  namespace: default
   labels:
     app: bemind-api
     component: api
@@ -215,7 +215,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: bemind-api-hpa
-  namespace: bemindindexer
+  namespace: default
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

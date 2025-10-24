@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: bemind-app-config
-  namespace: bemindindexer
+  namespace: default
   labels:
     app: bemind
     component: config
