@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: bemind
+  name: bemindindexer
   labels:
-    name: bemind
+    name: bemindindexer
     environment: production
     app: bemind

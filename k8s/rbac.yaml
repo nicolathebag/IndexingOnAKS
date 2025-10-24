@@ -7,7 +7,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: bemind-indexer-sa
-  namespace: bemind
+  namespace: bemindindexer
   labels:
     app: bemind
     component: indexer
@@ -17,7 +17,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: bemind-indexer-role
-  namespace: bemind
+  namespace: bemindindexer
   labels:
     app: bemind
     component: indexer
@@ -47,14 +47,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: bemind-indexer-rolebinding
-  namespace: bemind
+  namespace: bemindindexer
   labels:
     app: bemind
     component: indexer
 subjects:
   - kind: ServiceAccount
     name: bemind-indexer-sa
-    namespace: bemind
+    namespace: bemindindexer
 roleRef:
   kind: Role
   name: bemind-indexer-role
