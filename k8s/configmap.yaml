@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: bemind-app-config
+  name: bemind-config
   namespace: default
   labels:
     app: bemind
