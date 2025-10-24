@@ -1,8 +1,10 @@
 from flask import Blueprint, jsonify, request
 from kubernetes import client, config
+from kubernetes.client.rest import ApiException
 import os
 import time
 from datetime import datetime
+import hashlib
 
 bp = Blueprint('jobs', __name__, url_prefix='/api')
 
@@ -17,26 +19,85 @@ core_v1 = client.CoreV1Api()
 
 @bp.route('/jobs', methods=['POST'])
 def create_job():
-    """Create a new indexing job with configurable parallelism"""
+    """Create a new indexing job with conflict handling"""
     try:
         data = request.get_json()
         
         # Job configuration parameters
-        job_name = data.get('job_name', f"indexing-job-{int(time.time())}")
+        job_name = data.get('job_name')
         namespace = os.getenv('KUBERNETES_NAMESPACE', 'default')
         
+        # Generate unique job name if not provided or if replace_existing is true
+        replace_existing = data.get('replace_existing', False)
+        
+        if not job_name:
+            # Auto-generate unique name based on timestamp and hash
+            timestamp = int(time.time())
+            config_hash = hashlib.md5(str(data).encode()).hexdigest()[:8]
+            job_name = f"indexing-job-{timestamp}-{config_hash}"
+        
+        # Check if job already exists
+        job_exists = False
+        try:
+            existing_job = batch_v1.read_namespaced_job(job_name, namespace)
+            job_exists = True
+            
+            # If job exists and replace_existing is False, return conflict
+            if not replace_existing:
+                job_status = get_job_status(existing_job)
+                return jsonify({
+                    'error': 'Job already exists',
+                    'job_name': job_name,
+                    'current_status': job_status,
+                    'message': 'Use replace_existing=true to delete and recreate, or use a different job_name',
+                    'status_url': f'/api/jobs/{job_name}/status'
+                }), 409
+            
+            # Delete existing job if replace_existing is true
+            print(f"Deleting existing job: {job_name}")
+            batch_v1.delete_namespaced_job(
+                job_name,
+                namespace,
+                propagation_policy='Foreground'
+            )
+            # Wait briefly for deletion to complete
+            time.sleep(2)
+            
+        except ApiException as e:
+            if e.status != 404:  # If error is not "not found", re-raise
+                raise
+        
         # Parallelism and retry configuration
-        parallelism = data.get('parallelism', 3)  # Default: 3 parallel pods
-        completions = data.get('completions', 1)  # Default: 1 completion needed
-        backoff_limit = data.get('backoff_limit', 5)  # Default: 5 retries
-        active_deadline = data.get('active_deadline_seconds', 3600)  # Default: 1 hour
-        ttl_after_finished = data.get('ttl_seconds_after_finished', 86400)  # Default: 24 hours
+        parallelism = data.get('parallelism', 3)
+        completions = data.get('completions', 1)
+        backoff_limit = data.get('backoff_limit', 5)
+        active_deadline = data.get('active_deadline_seconds', 3600)
+        ttl_after_finished = data.get('ttl_seconds_after_finished', 86400)
+        
+        # Validate parallelism settings
+        if parallelism < 1:
+            return jsonify({
+                'error': 'Invalid parallelism value',
+                'message': 'Parallelism must be >= 1'
+            }), 400
+        
+        if completions < 1:
+            return jsonify({
+                'error': 'Invalid completions value',
+                'message': 'Completions must be >= 1'
+            }), 400
+        
+        if backoff_limit < 0:
+            return jsonify({
+                'error': 'Invalid backoff_limit value',
+                'message': 'backoff_limit must be >= 0'
+            }), 400
         
         # Container configuration
         image = data.get('image', 'devbemindcontainerregistryse.azurecr.io/bemind-indexer:latest')
         job_env = data.get('env', {})
         
-        # Resource limits
+        # Resource limits with Azure best practices
         cpu_request = data.get('cpu_request', '500m')
         memory_request = data.get('memory_request', '1Gi')
         cpu_limit = data.get('cpu_limit', '1000m')
@@ -64,7 +125,7 @@ def create_job():
             )
         ]
         
-        # Add Azure credentials from secrets
+        # Add Azure credentials from secrets (Azure best practice: use secrets for credentials)
         secret_env_vars = [
             'AZURE_OPENAI_ENDPOINT',
             'AZURE_OPENAI_API_KEY',
@@ -80,7 +141,8 @@ def create_job():
                     value_from=client.V1EnvVarSource(
                         secret_key_ref=client.V1SecretKeySelector(
                             name='bemind-secrets',
-                            key=env_name
+                            key=env_name,
+                            optional=False
                         )
                     )
                 )
@@ -90,7 +152,7 @@ def create_job():
         for k, v in job_env.items():
             env_vars.append(client.V1EnvVar(name=k, value=str(v)))
         
-        # Define the job
+        # Define the job with Azure AKS best practices
         job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
@@ -101,11 +163,13 @@ def create_job():
                     'app': 'bemind-indexer',
                     'component': 'job',
                     'managed-by': 'bemind-api',
-                    'job-type': data.get('job_type', 'indexing')
+                    'job-type': data.get('job_type', 'indexing'),
+                    'azure.workload.identity/use': 'true'  # Azure best practice: workload identity
                 },
                 annotations={
                     'created-by': 'bemind-api',
-                    'created-at': datetime.utcnow().isoformat()
+                    'created-at': datetime.utcnow().isoformat(),
+                    'replaced-existing': str(job_exists)
                 }
             ),
             spec=client.V1JobSpec(
@@ -119,15 +183,20 @@ def create_job():
                         labels={
                             'app': 'bemind-indexer',
                             'component': 'job-pod',
-                            'job-name': job_name
+                            'job-name': job_name,
+                            'azure.workload.identity/use': 'true'
                         },
                         annotations={
-                            'cluster-autoscaler.kubernetes.io/safe-to-evict': 'false'
+                            'cluster-autoscaler.kubernetes.io/safe-to-evict': 'false',
+                            'prometheus.io/scrape': 'true',
+                            'prometheus.io/port': '8080'
                         }
                     ),
                     spec=client.V1PodSpec(
                         restart_policy="OnFailure",
                         service_account_name="bemind-indexer-sa",
+                        # Azure best practice: use node selector for specialized workloads
+                        node_selector=data.get('node_selector', {}),
                         containers=[
                             client.V1Container(
                                 name="indexer",
@@ -146,12 +215,29 @@ def create_job():
                                         'cpu': cpu_limit
                                     }
                                 ),
+                                # Azure best practice: add liveness and readiness probes
+                                liveness_probe=client.V1Probe(
+                                    exec=client.V1ExecAction(
+                                        command=["pgrep", "-f", "python"]
+                                    ),
+                                    initial_delay_seconds=30,
+                                    period_seconds=30,
+                                    timeout_seconds=5,
+                                    failure_threshold=3
+                                ) if data.get('enable_probes', False) else None,
                                 volume_mounts=[
                                     client.V1VolumeMount(
                                         name="temp-storage",
                                         mount_path="/tmp/indexing"
                                     )
-                                ]
+                                ],
+                                # Azure best practice: security context
+                                security_context=client.V1SecurityContext(
+                                    run_as_non_root=True,
+                                    run_as_user=1000,
+                                    allow_privilege_escalation=False,
+                                    read_only_root_filesystem=False
+                                )
                             )
                         ],
                         volumes=[
@@ -161,7 +247,13 @@ def create_job():
                                     size_limit="5Gi"
                                 )
                             )
-                        ]
+                        ],
+                        # Azure best practice: pod security
+                        security_context=client.V1PodSecurityContext(
+                            run_as_non_root=True,
+                            run_as_user=1000,
+                            fs_group=1000
+                        )
                     )
                 )
             )
@@ -174,16 +266,24 @@ def create_job():
             'message': 'Job created successfully',
             'job_name': created_job.metadata.name,
             'namespace': namespace,
+            'replaced_existing': job_exists,
             'configuration': {
                 'parallelism': parallelism,
                 'completions': completions,
                 'backoff_limit': backoff_limit,
-                'active_deadline_seconds': active_deadline
+                'active_deadline_seconds': active_deadline,
+                'ttl_seconds_after_finished': ttl_after_finished
             },
             'status_url': f'/api/jobs/{created_job.metadata.name}/status',
             'created_at': created_job.metadata.creation_timestamp.isoformat() if created_job.metadata.creation_timestamp else None
         }), 201
     
+    except ApiException as e:
+        return jsonify({
+            'error': str(e),
+            'message': 'Kubernetes API error',
+            'status_code': e.status
+        }), 500
     except Exception as e:
         return jsonify({
             'error': str(e),
@@ -227,6 +327,13 @@ def get_job_status_endpoint(job_name: str):
             
             pod_statuses.append(pod_status)
         
+        # Calculate duration
+        duration = None
+        if job.status.start_time and job.status.completion_time:
+            duration = (job.status.completion_time - job.status.start_time).total_seconds()
+        elif job.status.start_time:
+            duration = (datetime.utcnow().replace(tzinfo=job.status.start_time.tzinfo) - job.status.start_time).total_seconds()
+        
         status = {
             'name': job.metadata.name,
             'namespace': namespace,
@@ -234,6 +341,7 @@ def get_job_status_endpoint(job_name: str):
             'created': job.metadata.creation_timestamp.isoformat() if job.metadata.creation_timestamp else None,
             'start_time': job.status.start_time.isoformat() if job.status.start_time else None,
             'completion_time': job.status.completion_time.isoformat() if job.status.completion_time else None,
+            'duration_seconds': duration,
             'configuration': {
                 'parallelism': job.spec.parallelism,
                 'completions': job.spec.completions,
@@ -261,7 +369,7 @@ def get_job_status_endpoint(job_name: str):
         
         return jsonify(status), 200
     
-    except client.exceptions.ApiException as e:
+    except ApiException as e:
         if e.status == 404:
             return jsonify({
                 'error': 'Job not found',
@@ -274,16 +382,32 @@ def get_job_status_endpoint(job_name: str):
 
 @bp.route('/jobs', methods=['GET'])
 def list_jobs():
-    """List all jobs with metrics"""
+    """List all jobs with metrics and filtering"""
     try:
         namespace = os.getenv('KUBERNETES_NAMESPACE', 'default')
-        jobs = batch_v1.list_namespaced_job(namespace)
+        
+        # Get query parameters for filtering
+        status_filter = request.args.get('status')  # Running, Completed, Failed, Pending
+        job_type = request.args.get('job_type')
+        
+        # Build label selector
+        label_selector = 'app=bemind-indexer'
+        if job_type:
+            label_selector += f',job-type={job_type}'
+        
+        jobs = batch_v1.list_namespaced_job(namespace, label_selector=label_selector)
         
         job_list = []
         for job in jobs.items:
+            status = get_job_status(job)
+            
+            # Apply status filter if provided
+            if status_filter and status.lower() != status_filter.lower():
+                continue
+            
             job_list.append({
                 'name': job.metadata.name,
-                'status': get_job_status(job),
+                'status': status,
                 'created': job.metadata.creation_timestamp.isoformat() if job.metadata.creation_timestamp else None,
                 'configuration': {
                     'parallelism': job.spec.parallelism,
@@ -300,7 +424,11 @@ def list_jobs():
         
         return jsonify({
             'jobs': job_list,
-            'total': len(job_list)
+            'total': len(job_list),
+            'filters': {
+                'status': status_filter,
+                'job_type': job_type
+            }
         }), 200
     
     except Exception as e:
@@ -326,7 +454,7 @@ def delete_job(job_name: str):
             'job_name': job_name
         }), 200
     
-    except client.exceptions.ApiException as e:
+    except ApiException as e:
         if e.status == 404:
             return jsonify({
                 'error': 'Job not found',
