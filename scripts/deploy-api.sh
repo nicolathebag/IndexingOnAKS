@@ -38,7 +38,7 @@ fi
 
 # Step 1: Login to Azure (if not already logged in)
 echo -e "${YELLOW}Step 1: Checking Azure login...${NC}"
-if ! az account show > /dev/null 2>&1; then
+if ! timeout 10 az account show > /dev/null 2>&1; then
     echo -e "${YELLOW}Not logged in to Azure. Please login...${NC}"
     az login
 fi
@@ -53,27 +53,33 @@ az aks get-credentials \
     --overwrite-existing
 echo -e "${GREEN}✓ AKS credentials obtained${NC}"
 
-# Verify kubectl connection
-echo -e "${YELLOW}Verifying kubectl connection...${NC}"
-if ! kubectl cluster-info --request-timeout=10s > /dev/null 2>&1; then
-    echo -e "${RED}Error: Cannot connect to Kubernetes cluster${NC}"
-    echo -e "${YELLOW}Please ensure you're logged in and have access to the cluster${NC}"
-    exit 1
+# Verify kubectl connection with timeout
+echo -e "${YELLOW}Step 3: Verifying kubectl connection...${NC}"
+if timeout 15 kubectl cluster-info > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ Connected to Kubernetes cluster${NC}"
+else
+    echo -e "${YELLOW}Warning: kubectl connection timeout or failed${NC}"
+    echo -e "${YELLOW}This may be due to network issues or cluster not running${NC}"
+    read -p "Continue with deployment anyway? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Deployment cancelled${NC}"
+        exit 1
+    fi
 fi
-echo -e "${GREEN}✓ Connected to Kubernetes cluster${NC}"
 
-# Step 3: Verify image exists in ACR
-echo -e "${YELLOW}Step 3: Verifying image exists in ACR...${NC}"
+# Step 4: Verify image exists in ACR
+echo -e "${YELLOW}Step 4: Verifying image exists in ACR...${NC}"
 IMAGE_EXISTS=$(az acr repository show \
     --name "$ACR_NAME" \
     --image "bemind-api:${CURRENT_VERSION}" \
     --query "name" -o tsv 2>/dev/null || echo "")
 
 if [[ -z "$IMAGE_EXISTS" ]]; then
-    echo -e "${RED}Warning: Image bemind-api:${CURRENT_VERSION} not found in ACR${NC}"
+    echo -e "${YELLOW}Warning: Image bemind-api:${CURRENT_VERSION} not found in ACR${NC}"
     echo -e "${YELLOW}Available images:${NC}"
-    az acr repository list --name "$ACR_NAME" -o table
-    echo -e "${YELLOW}Please build and push the image first, or update CURRENT_VERSION in bemind-env.sh${NC}"
+    az acr repository list --name "$ACR_NAME" -o table || echo "Could not list images"
+    echo -e "${YELLOW}Please build and push the image first${NC}"
     read -p "Continue anyway? (y/n) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -83,8 +89,8 @@ else
     echo -e "${GREEN}✓ Image found: bemind-api:${CURRENT_VERSION}${NC}"
 fi
 
-# Step 4: Create secrets from credentials file
-echo -e "${YELLOW}Step 4: Creating Kubernetes secrets from credentials...${NC}"
+# Step 5: Create secrets from credentials file
+echo -e "${YELLOW}Step 5: Creating Kubernetes secrets from credentials...${NC}"
 
 # Set default values if not provided
 AZURE_OPENAI_KEY="${AZURE_OPENAI_KEY:-placeholder-openai-key}"
@@ -99,10 +105,9 @@ if [[ "$AZURE_OPENAI_KEY" == "placeholder-openai-key" ]]; then
 fi
 
 # Check if secrets already exist (with timeout)
-SECRET_EXISTS=$(kubectl get secret bemind-secrets -n default --request-timeout=5s 2>/dev/null || echo "not-found")
-if [[ "$SECRET_EXISTS" != "not-found" ]]; then
+if timeout 10 kubectl get secret bemind-secrets -n default > /dev/null 2>&1; then
     echo -e "${YELLOW}Secret 'bemind-secrets' already exists. Deleting and recreating...${NC}"
-    kubectl delete secret bemind-secrets -n default --timeout=10s
+    kubectl delete secret bemind-secrets -n default --timeout=10s || echo "Failed to delete existing secret"
 fi
 
 # Create secret with actual values from credentials file
@@ -120,47 +125,53 @@ kubectl create secret generic bemind-secrets \
     --from-literal=AZURE_STORAGE_ACCOUNT_NAME="${STORAGE_ACCOUNT_NAME}" \
     --from-literal=AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}" \
     --from-literal=AZURE_STORAGE_ENDPOINT="${STORAGE_ENDPOINT}" \
-    --from-literal=JWT_SECRET="${JWT_SECRET}"
+    --from-literal=JWT_SECRET="${JWT_SECRET}" \
+    --dry-run=client -o yaml | kubectl apply -f -
 
 echo -e "${GREEN}✓ Secret 'bemind-secrets' created successfully${NC}"
 
-# Step 5: Apply ConfigMap
-echo -e "${YELLOW}Step 5: Applying ConfigMap...${NC}"
+# Step 6: Apply ConfigMap
+echo -e "${YELLOW}Step 6: Applying ConfigMap...${NC}"
 kubectl apply -f "${SCRIPT_DIR}/../k8s/configmap.yaml"
 
-# Step 6: Apply RBAC
-echo -e "${YELLOW}Step 6: Applying RBAC...${NC}"
+# Step 7: Apply RBAC
+echo -e "${YELLOW}Step 7: Applying RBAC...${NC}"
 kubectl apply -f "${SCRIPT_DIR}/../k8s/rbac.yaml"
 kubectl apply -f "${SCRIPT_DIR}/../k8s/serviceaccount.yaml"
 
-# Step 7: Deploy API
-echo -e "${YELLOW}Step 7: Deploying API...${NC}"
+# Step 8: Deploy API
+echo -e "${YELLOW}Step 8: Deploying API...${NC}"
 kubectl apply -f "${SCRIPT_DIR}/../k8s/api-deployment.yaml"
 
-# Step 8: Wait for rollout
-echo -e "${YELLOW}Step 8: Waiting for deployment to complete...${NC}"
-kubectl rollout status deployment/bemind-api -n default --timeout=5m
+# Step 9: Wait for rollout
+echo -e "${YELLOW}Step 9: Waiting for deployment to complete...${NC}"
+if ! kubectl rollout status deployment/bemind-api -n default --timeout=5m; then
+    echo -e "${YELLOW}Warning: Deployment rollout did not complete in time${NC}"
+    echo -e "${YELLOW}Check status with: kubectl get pods -n default -l app=bemind-api${NC}"
+fi
 
-# Step 9: Check deployment status
-echo -e "${YELLOW}Step 9: Checking deployment status...${NC}"
+# Step 10: Check deployment status
+echo -e "${YELLOW}Step 10: Checking deployment status...${NC}"
 echo -e "${GREEN}Pods:${NC}"
-kubectl get pods -n default -l app=bemind-api
+kubectl get pods -n default -l app=bemind-api || echo "Could not get pods"
 
 echo -e "${GREEN}Service:${NC}"
-kubectl get svc -n default -l app=bemind-api
+kubectl get svc -n default -l app=bemind-api || echo "Could not get service"
 
 echo -e "${GREEN}HPA:${NC}"
-kubectl get hpa -n default
+kubectl get hpa -n default || echo "Could not get HPA"
 
-# Step 10: Get pod logs (last 10 lines)
-echo -e "${YELLOW}Step 10: Recent pod logs:${NC}"
+# Step 11: Get pod logs (last 10 lines)
+echo -e "${YELLOW}Step 11: Recent pod logs:${NC}"
 POD_NAME=$(kubectl get pods -n default -l app=bemind-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
 if [[ -n "$POD_NAME" ]]; then
-    kubectl logs "$POD_NAME" -n default --tail=10 || echo "No logs available yet"
+    kubectl logs "$POD_NAME" -n default --tail=10 2>/dev/null || echo "No logs available yet"
+else
+    echo "No pods found yet"
 fi
 
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}Deployment completed successfully!${NC}"
+echo -e "${GREEN}Deployment completed!${NC}"
 echo -e "${GREEN}========================================${NC}"
 
 # Save deployed resources to tracking file
