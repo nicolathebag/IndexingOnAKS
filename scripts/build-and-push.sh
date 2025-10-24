@@ -3,8 +3,8 @@
 set -e
 
 # ================================================================
-# Build and Push Docker Images to ACR
-# Supports semantic versioning and latest tag
+# Build and Push Docker Images to ACR (Azure Cloud Shell Compatible)
+# Uses ACR Build Tasks instead of local Docker
 # ================================================================
 
 # Get the directory where this script is located
@@ -26,7 +26,7 @@ VERSION="${1:-v1.0.0}"
 BUILD_NUMBER="${2:-$(date +%Y%m%d%H%M%S)}"
 
 echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║         Building and Pushing to ACR                           ║"
+echo "║         Building and Pushing to ACR (Cloud Shell)             ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 
 echo ""
@@ -35,70 +35,49 @@ echo "  Version:      $VERSION"
 echo "  Build Number: $BUILD_NUMBER"
 echo "  ACR:          $ACR_LOGIN_SERVER"
 echo "  Project Root: $PROJECT_ROOT"
+echo "  Method:       Azure ACR Build Tasks (Cloud Shell Compatible)"
 echo ""
 
 cd "$PROJECT_ROOT"
 
-# Login to ACR
-echo "Step 1/4: Logging into ACR..."
-az acr login --name "$ACR_NAME"
-echo "✓ Logged in to ACR"
+# Login to ACR (token-based for Cloud Shell)
+echo "Step 1/3: Authenticating with ACR..."
+az acr login --name "$ACR_NAME" --expose-token > /dev/null 2>&1 || az acr login --name "$ACR_NAME"
+echo "✓ Authenticated with ACR"
 
-# Build API image
+# Build and push API image using ACR Build Tasks
 echo ""
-echo "Step 2/4: Building API image..."
+echo "Step 2/3: Building and pushing API image using ACR Build..."
 
-docker build \
+az acr build \
+    --registry "$ACR_NAME" \
+    --image "bemind-api:${VERSION}" \
+    --image "bemind-api:${VERSION}-${BUILD_NUMBER}" \
+    --image "bemind-api:latest" \
     --file "$PROJECT_ROOT/Dockerfile.api" \
-    --tag "${ACR_LOGIN_SERVER}/bemind-api:${VERSION}" \
-    --tag "${ACR_LOGIN_SERVER}/bemind-api:${VERSION}-${BUILD_NUMBER}" \
-    --tag "${ACR_LOGIN_SERVER}/bemind-api:latest" \
     --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
     --build-arg VERSION="${VERSION}" \
     --build-arg BUILD_NUMBER="${BUILD_NUMBER}" \
-    --label org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-    --label org.opencontainers.image.version="${VERSION}" \
-    --label org.opencontainers.image.revision="${BUILD_NUMBER}" \
     "$PROJECT_ROOT"
 
-echo "✓ API image built"
+echo "✓ API image built and pushed"
 
-# Build Indexer image
+# Build and push Indexer image using ACR Build Tasks
 echo ""
-echo "Step 3/4: Building Indexer image..."
+echo "Step 3/3: Building and pushing Indexer image using ACR Build..."
 
-docker build \
+az acr build \
+    --registry "$ACR_NAME" \
+    --image "bemind-indexer:${VERSION}" \
+    --image "bemind-indexer:${VERSION}-${BUILD_NUMBER}" \
+    --image "bemind-indexer:latest" \
     --file "$PROJECT_ROOT/Dockerfile.indexer" \
-    --tag "${ACR_LOGIN_SERVER}/bemind-indexer:${VERSION}" \
-    --tag "${ACR_LOGIN_SERVER}/bemind-indexer:${VERSION}-${BUILD_NUMBER}" \
-    --tag "${ACR_LOGIN_SERVER}/bemind-indexer:latest" \
     --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
     --build-arg VERSION="${VERSION}" \
     --build-arg BUILD_NUMBER="${BUILD_NUMBER}" \
-    --label org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-    --label org.opencontainers.image.version="${VERSION}" \
-    --label org.opencontainers.image.revision="${BUILD_NUMBER}" \
     "$PROJECT_ROOT"
 
-echo "✓ Indexer image built"
-
-# Push images to ACR
-echo ""
-echo "Step 4/4: Pushing images to ACR..."
-
-# Push API images
-echo "  Pushing API images..."
-docker push "${ACR_LOGIN_SERVER}/bemind-api:${VERSION}"
-docker push "${ACR_LOGIN_SERVER}/bemind-api:${VERSION}-${BUILD_NUMBER}"
-docker push "${ACR_LOGIN_SERVER}/bemind-api:latest"
-
-# Push Indexer images
-echo "  Pushing Indexer images..."
-docker push "${ACR_LOGIN_SERVER}/bemind-indexer:${VERSION}"
-docker push "${ACR_LOGIN_SERVER}/bemind-indexer:${VERSION}-${BUILD_NUMBER}"
-docker push "${ACR_LOGIN_SERVER}/bemind-indexer:latest"
-
-echo "✓ All images pushed to ACR"
+echo "✓ Indexer image built and pushed"
 
 # Verify images in ACR
 echo ""
@@ -153,6 +132,6 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 echo ""
-echo "✓ Build and push completed successfully!"
+echo "✓ Build and push completed successfully using ACR Build Tasks!"
 echo ""
-echo "To deploy: bash $SCRIPT_DIR/deploy-production.sh"
+echo "To deploy: bash $SCRIPT_DIR/deploy-with-existing-services.sh $VERSION"

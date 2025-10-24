@@ -1,7 +1,6 @@
 #!/bin/bash
 # ================================================================
 # BeMind Azure Environment Configuration
-# Updated for your environment
 # ================================================================
 
 # Azure Core Settings
@@ -16,10 +15,6 @@ export NAMESPACE="bemind"
 # ACR Configuration
 export ACR_NAME="devbemindcontainerregistryse"
 export ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
-
-# ================================================================
-# EXISTING AZURE SERVICES - ENDPOINTS
-# ================================================================
 
 # Azure Storage
 export STORAGE_ACCOUNT_NAME="avadatastore"
@@ -44,10 +39,7 @@ export SEARCH_API_VERSION="2023-11-01"
 # Application Version
 export CURRENT_VERSION="v1.0.0"
 
-echo "✓ Environment configured"
+echo "✓ Environment configured for Azure Cloud Shell"
 echo "  Resource Group: $RESOURCE_GROUP"
 echo "  AKS Cluster:    $AKS_CLUSTER_NAME"
 echo "  ACR:            $ACR_LOGIN_SERVER"
-echo "  Storage:        $STORAGE_ENDPOINT"
-echo "  Search:         $SEARCH_ENDPOINT"
-echo "  OpenAI:         $OPENAI_ENDPOINT"
