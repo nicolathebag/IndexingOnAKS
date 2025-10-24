@@ -51,10 +51,10 @@ spec:
               podAffinityTerm:
                 labelSelector:
                   matchExpressions:
-                    - key: app
+                    - key: component
                       operator: In
                       values:
-                        - bemind-api
+                        - api
                 topologyKey: topology.kubernetes.io/zone
       
       serviceAccountName: bemind-indexer-sa
@@ -81,80 +81,80 @@ spec:
             - name: AZURE_OPENAI_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: azure-openai-secret
+                  name: bemind-secrets
                   key: AZURE_OPENAI_ENDPOINT
             - name: AZURE_OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: azure-openai-secret
+                  name: bemind-secrets
                   key: AZURE_OPENAI_API_KEY
             - name: AZURE_OPENAI_API_VERSION
               valueFrom:
                 secretKeyRef:
-                  name: azure-openai-secret
+                  name: bemind-secrets
                   key: AZURE_OPENAI_API_VERSION
             - name: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
               valueFrom:
                 secretKeyRef:
-                  name: azure-openai-secret
+                  name: bemind-secrets
                   key: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
             - name: AZURE_OPENAI_GPT4_DEPLOYMENT
               valueFrom:
                 secretKeyRef:
-                  name: azure-openai-secret
+                  name: bemind-secrets
                   key: AZURE_OPENAI_GPT4_DEPLOYMENT
             
             # Azure Search from Secret
             - name: AZURE_SEARCH_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: azure-search-secret
+                  name: bemind-secrets
                   key: AZURE_SEARCH_ENDPOINT
             - name: AZURE_SEARCH_KEY
               valueFrom:
                 secretKeyRef:
-                  name: azure-search-secret
+                  name: bemind-secrets
                   key: AZURE_SEARCH_KEY
             - name: AZURE_SEARCH_API_VERSION
               valueFrom:
                 secretKeyRef:
-                  name: azure-search-secret
+                  name: bemind-secrets
                   key: AZURE_SEARCH_API_VERSION
             
             # Azure Storage from Secret
             - name: AZURE_STORAGE_ACCOUNT_NAME
               valueFrom:
                 secretKeyRef:
-                  name: azure-storage-secret
+                  name: bemind-secrets
                   key: AZURE_STORAGE_ACCOUNT_NAME
             - name: AZURE_STORAGE_CONNECTION_STRING
               valueFrom:
                 secretKeyRef:
-                  name: azure-storage-secret
+                  name: bemind-secrets
                   key: AZURE_STORAGE_CONNECTION_STRING
             - name: AZURE_STORAGE_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: azure-storage-secret
+                  name: bemind-secrets
                   key: AZURE_STORAGE_ENDPOINT
             
             # JWT Secret
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: api-secrets
+                  name: bemind-secrets
                   key: JWT_SECRET
             
             # ConfigMap values
             - name: LOG_LEVEL
               valueFrom:
                 configMapKeyRef:
-                  name: bemind-app-config
+                  name: bemind-config
                   key: LOG_LEVEL
             - name: MAX_WORKERS
               valueFrom:
                 configMapKeyRef:
-                  name: bemind-app-config
+                  name: bemind-config
                   key: MAX_WORKERS
           
           resources:
@@ -169,8 +169,8 @@ spec:
             httpGet:
               path: /health
               port: 5002
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 60
+            periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
           
@@ -178,9 +178,9 @@ spec:
             httpGet:
               path: /health
               port: 5002
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            timeoutSeconds: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
           
           securityContext:
@@ -188,9 +188,6 @@ spec:
             runAsUser: 1000
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
-            capabilities:
-              drop:
-                - ALL
 
 ---
 apiVersion: v1
