@@ -102,6 +102,22 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Deployment completed successfully!${NC}"
 echo -e "${GREEN}========================================${NC}"
 
+# Save deployed resources to tracking file
+TRACKING_FILE="${SCRIPT_DIR}/.bemind-resources.txt"
+echo "# BeMind Deployed Resources - $(date)" > "$TRACKING_FILE"
+echo "namespace=default" >> "$TRACKING_FILE"
+echo "deployment=bemind-api" >> "$TRACKING_FILE"
+echo "service=bemind-api-service" >> "$TRACKING_FILE"
+echo "hpa=bemind-api-hpa" >> "$TRACKING_FILE"
+echo "configmap=bemind-app-config" >> "$TRACKING_FILE"
+echo "secret=my-secret" >> "$TRACKING_FILE"
+echo "serviceaccount=bemind-indexer-sa,bemind-worker" >> "$TRACKING_FILE"
+echo "role=bemind-indexer-role" >> "$TRACKING_FILE"
+echo "rolebinding=bemind-indexer-rolebinding" >> "$TRACKING_FILE"
+
+echo -e "${GREEN}✓ Resource tracking saved to: $TRACKING_FILE${NC}"
+echo ""
+
 # Get service endpoint
 SERVICE_IP=$(kubectl get svc bemind-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "Pending...")
 if [[ "$SERVICE_IP" != "Pending..." ]]; then
@@ -110,3 +126,7 @@ else
     echo -e "${YELLOW}Service IP is still pending. Run this to check later:${NC}"
     echo -e "${YELLOW}kubectl get svc bemind-api-service -n default${NC}"
 fi
+
+echo ""
+echo -e "${YELLOW}To clean up all resources, run:${NC}"
+echo -e "${YELLOW}  ./scripts/cleanup.sh${NC}"

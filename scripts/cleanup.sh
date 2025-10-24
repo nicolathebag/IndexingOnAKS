@@ -1,4 +1,8 @@
 #!/bin/bash
+# ================================================================
+# BeMind Cleanup Script
+# Deletes all tracked resources from default namespace
+# ================================================================
 
 set -e
 
@@ -15,38 +19,77 @@ else
     exit 1
 fi
 
-echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║              BeMind Cleanup Script                            ║"
-echo "╚════════════════════════════════════════════════════════════════╝"
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${RED}╔════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║              BeMind Cleanup Script                            ║${NC}"
+echo -e "${RED}╚════════════════════════════════════════════════════════════════╝${NC}"
 
 echo ""
-echo "⚠️  WARNING: This will delete all BeMind resources from AKS"
+echo -e "${YELLOW}⚠️  WARNING: This will delete all BeMind resources from default namespace${NC}"
 echo ""
 echo "Resources to be deleted:"
-echo "  - Namespace: $NAMESPACE"
-echo "  - All deployments, services, pods in namespace"
-echo "  - All secrets and configmaps in namespace"
-echo "  - All jobs in namespace"
+echo "  - Deployment: bemind-api"
+echo "  - Service: bemind-api-service"
+echo "  - HorizontalPodAutoscaler: bemind-api-hpa"
+echo "  - ConfigMap: bemind-app-config"
+echo "  - Secret: my-secret"
+echo "  - ServiceAccount: bemind-indexer-sa, bemind-worker"
+echo "  - Role: bemind-indexer-role"
+echo "  - RoleBinding: bemind-indexer-rolebinding"
 echo ""
 
 read -p "Are you sure? Type 'DELETE' to confirm: " CONFIRM
 
 if [ "$CONFIRM" != "DELETE" ]; then
-    echo "Cleanup cancelled"
+    echo -e "${GREEN}Cleanup cancelled${NC}"
     exit 0
 fi
 
 echo ""
-echo "Connecting to AKS..."
+echo -e "${YELLOW}Connecting to AKS...${NC}"
 az aks get-credentials \
     --resource-group "$RESOURCE_GROUP" \
     --name "$AKS_CLUSTER_NAME" \
     --overwrite-existing
 
 echo ""
-echo "Deleting namespace and all resources..."
-kubectl delete namespace "$NAMESPACE" --ignore-not-found=true --timeout=300s
+echo -e "${YELLOW}Deleting BeMind resources from default namespace...${NC}"
 
+# Delete HPA
+echo -e "${YELLOW}Deleting HorizontalPodAutoscaler...${NC}"
+kubectl delete hpa bemind-api-hpa -n default --ignore-not-found=true
+
+# Delete Deployment
+echo -e "${YELLOW}Deleting Deployment...${NC}"
+kubectl delete deployment bemind-api -n default --ignore-not-found=true
+
+# Delete Service
+echo -e "${YELLOW}Deleting Services...${NC}"
+kubectl delete service bemind-api-service -n default --ignore-not-found=true
+kubectl delete service api-service -n default --ignore-not-found=true
+
+# Delete ConfigMap
+echo -e "${YELLOW}Deleting ConfigMaps...${NC}"
+kubectl delete configmap bemind-app-config -n default --ignore-not-found=true
+
+# Delete Secret
+echo -e "${YELLOW}Deleting Secrets...${NC}"
+kubectl delete secret my-secret -n default --ignore-not-found=true
+
+# Delete RBAC resources
+echo -e "${YELLOW}Deleting RBAC resources...${NC}"
+kubectl delete rolebinding bemind-indexer-rolebinding -n default --ignore-not-found=true
+kubectl delete role bemind-indexer-role -n default --ignore-not-found=true
+kubectl delete serviceaccount bemind-indexer-sa -n default --ignore-not-found=true
+kubectl delete serviceaccount bemind-worker -n default --ignore-not-found=true
+
+echo ""
+echo -e "${GREEN}✓ All BeMind resources deleted successfully!${NC}"
 echo ""
 echo "✓ Cleanup completed"
 echo ""
