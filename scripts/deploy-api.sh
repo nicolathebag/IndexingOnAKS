@@ -10,6 +10,16 @@ set -e  # Exit on error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/bemind-env.sh"
 
+# Source credentials from home directory
+CREDENTIALS_FILE="$HOME/.bemind-credentials.env"
+if [[ -f "$CREDENTIALS_FILE" ]]; then
+    echo "Loading credentials from $CREDENTIALS_FILE"
+    source "$CREDENTIALS_FILE"
+else
+    echo -e "${YELLOW}Warning: $CREDENTIALS_FILE not found${NC}"
+    echo -e "${YELLOW}Please create this file with your Azure credentials${NC}"
+fi
+
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -59,22 +69,61 @@ else
     echo -e "${GREEN}✓ Image found: bemind-api:${CURRENT_VERSION}${NC}"
 fi
 
-# Step 4: Create/Update secrets (using default namespace)
-echo -e "${YELLOW}Step 4: Applying secrets...${NC}"
-kubectl apply -f ../k8s/secrets.yaml
+# Step 4: Create secrets from credentials file
+echo -e "${YELLOW}Step 4: Creating Kubernetes secrets from credentials...${NC}"
+
+# Validate required credentials
+if [[ -z "$AZURE_OPENAI_KEY" ]]; then
+    echo -e "${RED}Error: AZURE_OPENAI_KEY not set in $CREDENTIALS_FILE${NC}"
+    exit 1
+fi
+
+if [[ -z "$AZURE_SEARCH_KEY" ]]; then
+    echo -e "${RED}Error: AZURE_SEARCH_KEY not set in $CREDENTIALS_FILE${NC}"
+    exit 1
+fi
+
+if [[ -z "$AZURE_STORAGE_CONNECTION_STRING" ]]; then
+    echo -e "${RED}Error: AZURE_STORAGE_CONNECTION_STRING not set in $CREDENTIALS_FILE${NC}"
+    exit 1
+fi
+
+# Check if secrets already exist
+if kubectl get secret bemind-secrets -n default >/dev/null 2>&1; then
+    echo -e "${YELLOW}Secret 'bemind-secrets' already exists. Deleting and recreating...${NC}"
+    kubectl delete secret bemind-secrets -n default
+fi
+
+# Create secret with actual values from credentials file
+kubectl create secret generic bemind-secrets \
+    -n default \
+    --from-literal=AZURE_OPENAI_ENDPOINT="${OPENAI_ENDPOINT}" \
+    --from-literal=AZURE_OPENAI_API_KEY="${AZURE_OPENAI_KEY}" \
+    --from-literal=AZURE_OPENAI_API_VERSION="${OPENAI_API_VERSION}" \
+    --from-literal=AZURE_OPENAI_EMBEDDING_DEPLOYMENT="${OPENAI_EMBEDDING_DEPLOYMENT}" \
+    --from-literal=AZURE_OPENAI_GPT4_DEPLOYMENT="${OPENAI_GPT4_DEPLOYMENT}" \
+    --from-literal=AZURE_SEARCH_ENDPOINT="${SEARCH_ENDPOINT}" \
+    --from-literal=AZURE_SEARCH_KEY="${AZURE_SEARCH_KEY}" \
+    --from-literal=AZURE_SEARCH_API_VERSION="${SEARCH_API_VERSION}" \
+    --from-literal=AZURE_STORAGE_ACCOUNT_NAME="${STORAGE_ACCOUNT_NAME}" \
+    --from-literal=AZURE_STORAGE_CONNECTION_STRING="${AZURE_STORAGE_CONNECTION_STRING}" \
+    --from-literal=AZURE_STORAGE_ENDPOINT="${STORAGE_ENDPOINT}" \
+    --from-literal=JWT_SECRET="${JWT_SECRET:-default-jwt-secret-change-in-production}"
+
+echo -e "${GREEN}✓ Secret 'bemind-secrets' created successfully${NC}"
 
 # Step 5: Apply ConfigMap
 echo -e "${YELLOW}Step 5: Applying ConfigMap...${NC}"
-kubectl apply -f ../k8s/configmap.yaml
+kubectl apply -f "${SCRIPT_DIR}/../k8s/configmap.yaml"
 
 # Step 6: Apply RBAC
 echo -e "${YELLOW}Step 6: Applying RBAC...${NC}"
-kubectl apply -f ../k8s/rbac.yaml
-kubectl apply -f ../k8s/serviceaccount.yaml
+kubectl apply -f "${SCRIPT_DIR}/../k8s/rbac.yaml"
+kubectl apply -f "${SCRIPT_DIR}/../k8s/serviceaccount.yaml"
 
 # Step 7: Deploy API
 echo -e "${YELLOW}Step 7: Deploying API...${NC}"
-kubectl apply -f ../k8s/api-deployment.yaml
+kubectl apply -f "${SCRIPT_DIR}/../k8s/api-deployment.yaml"
 
 # Step 8: Wait for rollout
 echo -e "${YELLOW}Step 8: Waiting for deployment to complete...${NC}"
