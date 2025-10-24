@@ -27,9 +27,24 @@ echo "╚═══════════════════════�
 cd "$PROJECT_ROOT"
 
 VERSION="${1:-v1.0.0}"
+SECRET_MODE="${2:-auto}"
+
+# Auto-detect secret creation method
+if [ "$SECRET_MODE" = "auto" ]; then
+    if [ -f "$HOME/.bemind-credentials.env" ]; then
+        SECRET_MODE="--from-file"
+        echo "ℹ  Using credentials from ~/.bemind-credentials.env"
+    else
+        SECRET_MODE="--interactive"
+        echo "ℹ  Using interactive credential input"
+    fi
+fi
+
+echo "  Version:   $VERSION"
+echo "  Method:    $SECRET_MODE"
+echo ""
 
 # Step 1: Setup ACR
-echo ""
 echo "Step 1/6: Setting up ACR..."
 bash "$SCRIPT_DIR/setup-acr.sh"
 
@@ -38,9 +53,9 @@ if [ -f "$HOME/bemind-env.sh" ]; then
     source "$HOME/bemind-env.sh"
 fi
 
-# Step 2: Build and push images
+# Step 2: Build and push images (skips if exist)
 echo ""
-echo "Step 2/6: Building and pushing images..."
+echo "Step 2/6: Building and pushing images (if needed)..."
 bash "$SCRIPT_DIR/build-and-push.sh" "$VERSION"
 
 # Step 3: Connect to AKS
@@ -56,19 +71,22 @@ echo ""
 echo "Step 4/6: Creating namespace..."
 kubectl apply -f "$PROJECT_ROOT/k8s/namespace.yaml"
 
-# Step 5: Create secrets from existing services
+# Step 5: Create secrets
 echo ""
-echo "Step 5/6: Creating secrets..."
-echo "Choose secret creation method:"
-echo "  1) Interactive (prompts for credentials)"
-echo "  2) From .env file (~/.bemind-credentials.env)"
-read -p "Enter choice (1 or 2): " SECRET_METHOD
+echo "Step 5/6: Creating secrets ($SECRET_MODE)..."
 
-if [ "$SECRET_METHOD" = "1" ]; then
-    bash "$SCRIPT_DIR/create-secrets-existing.sh"
-else
-    bash "$SCRIPT_DIR/create-secrets-from-env.sh"
-fi
+case "$SECRET_MODE" in
+    --interactive)
+        bash "$SCRIPT_DIR/create-secrets-existing.sh"
+        ;;
+    --from-file)
+        bash "$SCRIPT_DIR/create-secrets-from-env.sh"
+        ;;
+    *)
+        echo "Error: Invalid secret mode: $SECRET_MODE"
+        exit 1
+        ;;
+esac
 
 # Step 6: Deploy application
 echo ""
@@ -86,6 +104,6 @@ echo "════════════════════════�
 kubectl get all -n "$NAMESPACE"
 
 echo ""
-echo "Test the deployment:"
+echo "Next steps:"
 echo "  kubectl port-forward svc/bemind-api-service 8080:5002 -n $NAMESPACE"
 echo "  curl http://localhost:8080/health"
