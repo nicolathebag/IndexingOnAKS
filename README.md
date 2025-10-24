@@ -1,56 +1,793 @@
-# k8s-indexer-deployment
+# BeMind Kubernetes Deployment
 
-## Overview
-This project is designed to manage indexing jobs and provide an API for interacting with those jobs. It includes functionality for handling blob storage, converting PDF files, and managing indices.
+A production-ready Kubernetes deployment for the BeMind indexing and API system on Azure Kubernetes Service (AKS).
 
-## Project Structure
-- **src/**: Contains the source code for the application.
-  - **api/**: The API layer of the application.
-    - **app.py**: Main application logic and server setup.
-    - **routes/**: Contains route definitions for the API.
-      - **health.py**: Health check route.
-      - **indices.py**: Routes for index management.
-  - **indexer/**: Contains logic for managing indexing jobs.
-    - **job.py**: Job management and scheduling.
-    - **processors/**: Contains various processors for handling files.
-      - **blob_handler.py**: Functions for blob storage operations.
-      - **pdf_converter.py**: PDF conversion functionality.
-      - **search_indexer.py**: Document indexing logic.
-  - **utils/**: Utility functions for the application.
-    - **auth.py**: Authentication-related functions.
-    - **logger.py**: Logging functionality.
+## 📋 Table of Contents
 
-- **k8s/**: Contains Kubernetes configuration files.
-  - **namespace.yaml**: Defines the Kubernetes namespace.
-  - **configmap.yaml**: Configuration data for the application.
-  - **secrets.yaml**: Sensitive information for the application.
-  - **api-deployment.yaml**: Deployment configuration for the API.
-  - **api-service.yaml**: Service configuration for the API.
-  - **indexer-cronjob.yaml**: Cron job configuration for the indexer.
-  - **rbac.yaml**: Role-Based Access Control configurations.
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Deployment Guide](#deployment-guide)
+- [API Reference](#api-reference)
+- [Testing](#testing)
+- [Monitoring & Troubleshooting](#monitoring--troubleshooting)
+- [Cleanup](#cleanup)
 
-- **scripts/**: Contains deployment and cleanup scripts.
-  - **deploy.sh**: Script for deploying the application.
-  - **cleanup.sh**: Script for cleaning up resources.
+## 🎯 Overview
 
-- **requirements.txt**: Lists Python dependencies for the project.
+BeMind is a cloud-native application that provides:
+- **RESTful API** for managing document indexing jobs
+- **Kubernetes Job Management** with parallelism and retry logic
+- **Azure Integration** with Storage, Cognitive Search, and OpenAI
+- **Production-ready** deployment with health checks, autoscaling, and monitoring
 
-- **.dockerignore**: Specifies files to ignore when building Docker images.
+### Key Features
 
-## Setup Instructions
-1. Clone the repository.
-2. Navigate to the project directory.
-3. Install the required dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-4. Configure Kubernetes resources as needed.
-5. Deploy the application using the provided scripts.
+- ✅ Horizontal Pod Autoscaling (HPA)
+- ✅ Rolling updates with zero downtime
+- ✅ Health and readiness probes
+- ✅ Secure secret management
+- ✅ Resource limits and requests
+- ✅ RBAC for job creation
+- ✅ Multi-stage Docker builds
+- ✅ Azure Container Registry (ACR) integration
 
-## Usage
-- Start the application by running `app.py`.
-- Access the API at the configured endpoint.
-- Use the health check route to monitor the application's status.
+## 🏗️ Architecture
 
-## Contributing
-Contributions are welcome! Please submit a pull request or open an issue for any enhancements or bug fixes.
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Azure Cloud                         │
+│  ┌────────────────────────────────────────────────┐    │
+│  │            Azure Kubernetes Service             │    │
+│  │                                                 │    │
+│  │  ┌──────────────┐      ┌──────────────┐       │    │
+│  │  │   BeMind API │◄────►│  Kubernetes  │       │    │
+│  │  │  (Deployment)│      │    Jobs      │       │    │
+│  │  └──────┬───────┘      └──────────────┘       │    │
+│  │         │                                       │    │
+│  │         ▼                                       │    │
+│  │  ┌──────────────┐                              │    │
+│  │  │ Load Balancer│                              │    │
+│  │  └──────────────┘                              │    │
+│  └────────────────────────────────────────────────┘    │
+│                                                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
+│  │  Storage │  │  Search  │  │  OpenAI  │            │
+│  │   Blob   │  │ Service  │  │ Service  │            │
+│  └──────────┘  └──────────┘  └──────────┘            │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 📦 Prerequisites
+
+### Required Software
+- Azure CLI (`az`) >= 2.50.0
+- kubectl >= 1.27.0
+- Bash shell (Git Bash on Windows, native on Linux/Mac)
+
+### Azure Resources (Must exist before deployment)
+- Azure Subscription
+- Resource Group
+- AKS Cluster
+- Azure Container Registry (ACR) attached to AKS
+- Azure Storage Account
+- Azure Cognitive Search Service
+- Azure OpenAI Service
+
+### Verify Prerequisites
+
+```bash
+# Check Azure CLI
+az --version
+
+# Check kubectl
+kubectl version --client
+
+# Login to Azure
+az login
+az account set --subscription "YOUR_SUBSCRIPTION_ID"
+```
+
+## 🚀 Quick Start
+
+### 1. Clone and Configure
+
+```bash
+cd ~/
+git clone <your-repo-url> k8s-indexer-deployment
+cd k8s-indexer-deployment
+```
+
+### 2. Setup Environment
+
+```bash
+# Copy and edit environment configuration
+cp scripts/bemind-env.sh ~/bemind-env.sh
+nano ~/bemind-env.sh  # Edit with your Azure resource names
+
+# Source the environment
+source ~/bemind-env.sh
+```
+
+### 3. Setup Credentials
+
+**Option A: Interactive (Recommended for first-time setup)**
+```bash
+bash scripts/create-secrets-existing.sh
+```
+
+**Option B: From credentials file**
+```bash
+# Copy template
+cp .bemind-credentials.env.template ~/.bemind-credentials.env
+
+# Edit with your credentials
+nano ~/.bemind-credentials.env
+
+# Deploy with credentials
+bash scripts/create-secrets-from-env.sh
+```
+
+### 4. Deploy
+
+```bash
+# Full production deployment
+bash scripts/deploy-with-existing-services.sh v1.0.0
+
+# Or deploy API only (faster, for updates)
+bash scripts/deploy-api.sh
+```
+
+### 5. Verify Deployment
+
+```bash
+# Check pod status
+kubectl get pods -n default -l app=bemind-api
+
+# Check service
+kubectl get svc bemind-api-service -n default
+
+# View logs
+kubectl logs -l app=bemind-api -n default --tail=50
+```
+
+## 📚 Deployment Guide
+
+### Environment Configuration
+
+Edit [`~/bemind-env.sh`](scripts/bemind-env.sh):
+
+```bash
+# Azure Core Settings
+export SUBSCRIPTION_ID="your-subscription-id"
+export RESOURCE_GROUP="DEV-BeMind"
+export LOCATION="swedencentral"
+
+# AKS Configuration
+export AKS_CLUSTER_NAME="bemind_aks"
+export NAMESPACE="default"
+
+# ACR Configuration
+export ACR_NAME="devbemindcontainerregistryse"
+export ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
+
+# Azure Services
+export STORAGE_ACCOUNT_NAME="avadatastore"
+export SEARCH_SERVICE_NAME="be-tt-ava-aisearch-bechtle"
+export OPENAI_RESOURCE_NAME="be-tt-ava-openaieu"
+```
+
+### Credentials Setup
+
+Required credentials in [`~/.bemind-credentials.env`](.bemind-credentials.env.template):
+
+```bash
+# Azure OpenAI
+export AZURE_OPENAI_KEY="your-openai-api-key"
+
+# Azure Cognitive Search
+export AZURE_SEARCH_KEY="your-search-admin-key"
+
+# Azure Storage
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;..."
+
+# JWT Secret (auto-generated if not provided)
+export JWT_SECRET="your-secure-jwt-secret"
+```
+
+### Deployment Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| [`deploy-with-existing-services.sh`](scripts/deploy-with-existing-services.sh) | Full production deployment | `bash scripts/deploy-with-existing-services.sh v1.0.0` |
+| [`deploy-api.sh`](scripts/deploy-api.sh) | Deploy API only (fast updates) | `bash scripts/deploy-api.sh` |
+| [`build-and-push.sh`](scripts/build-and-push.sh) | Build and push images to ACR | `bash scripts/build-and-push.sh v1.0.1` |
+| [`setup-acr.sh`](scripts/setup-acr.sh) | Configure ACR access | `bash scripts/setup-acr.sh` |
+| [`create-secrets-existing.sh`](scripts/create-secrets-existing.sh) | Create secrets interactively | `bash scripts/create-secrets-existing.sh` |
+| [`create-secrets-from-env.sh`](scripts/create-secrets-from-env.sh) | Create secrets from file | `bash scripts/create-secrets-from-env.sh` |
+
+### Image Versioning
+
+The build system automatically handles versioning:
+
+```bash
+# Build specific version
+bash scripts/build-and-push.sh v1.0.1
+
+# Images created:
+# - bemind-api:v1.0.1
+# - bemind-api:v1.0.1-<timestamp>
+# - bemind-api:latest
+```
+
+## 🔌 API Reference
+
+### Base URL
+```
+http://<EXTERNAL_IP>:5002
+```
+
+Get external IP:
+```bash
+kubectl get svc bemind-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+```
+
+### Health Endpoints
+
+#### Health Check
+```bash
+GET /health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "bemind-api"
+}
+```
+
+#### Readiness Check
+```bash
+GET /readiness
+```
+
+### Job Management Endpoints
+
+#### Create Job
+```bash
+POST /api/jobs
+Content-Type: application/json
+
+{
+  "job_name": "my-indexing-job",
+  "parallelism": 3,
+  "completions": 1,
+  "backoff_limit": 5,
+  "active_deadline_seconds": 3600,
+  "replace_existing": false,
+  "job_type": "indexing",
+  "env": {
+    "INDEX_NAME": "my-index",
+    "BATCH_SIZE": "100"
+  }
+}
+```
+
+**Parameters:**
+- `job_name` (optional): Custom job name. Auto-generated if not provided.
+- `parallelism` (default: 3): Number of parallel pods
+- `completions` (default: 1): Number of successful completions needed
+- `backoff_limit` (default: 5): Max retry attempts
+- `active_deadline_seconds` (default: 3600): Job timeout
+- `replace_existing` (default: false): Delete and recreate if job exists
+- `job_type`: Label for job categorization
+- `env`: Custom environment variables for the job
+
+**Response:**
+```json
+{
+  "message": "Job created successfully",
+  "job_name": "indexing-job-1234567890-abc123",
+  "namespace": "default",
+  "replaced_existing": false,
+  "configuration": {
+    "parallelism": 3,
+    "completions": 1,
+    "backoff_limit": 5,
+    "active_deadline_seconds": 3600
+  },
+  "status_url": "/api/jobs/indexing-job-1234567890-abc123/status"
+}
+```
+
+#### Get Job Status
+```bash
+GET /api/jobs/{job_name}/status
+```
+
+**Response:**
+```json
+{
+  "name": "indexing-job-1234567890-abc123",
+  "namespace": "default",
+  "status": "Running",
+  "created": "2024-01-15T10:30:00Z",
+  "start_time": "2024-01-15T10:30:05Z",
+  "duration_seconds": 125.5,
+  "configuration": {
+    "parallelism": 3,
+    "completions": 1,
+    "backoff_limit": 5
+  },
+  "metrics": {
+    "succeeded": 0,
+    "active": 3,
+    "failed": 0,
+    "ready": 2,
+    "total_pods": 3
+  },
+  "pods": [
+    {
+      "name": "indexing-job-abc123-pod1",
+      "phase": "Running",
+      "start_time": "2024-01-15T10:30:05Z",
+      "restarts": 0,
+      "node": "aks-nodepool1-12345678-vmss000000"
+    }
+  ]
+}
+```
+
+#### List Jobs
+```bash
+GET /api/jobs?status=running&job_type=indexing
+```
+
+**Query Parameters:**
+- `status`: Filter by status (Running, Completed, Failed, Pending)
+- `job_type`: Filter by job type label
+
+**Response:**
+```json
+{
+  "jobs": [
+    {
+      "name": "indexing-job-1234567890-abc123",
+      "status": "Running",
+      "created": "2024-01-15T10:30:00Z",
+      "configuration": {
+        "parallelism": 3,
+        "completions": 1
+      },
+      "metrics": {
+        "succeeded": 0,
+        "active": 3,
+        "failed": 0
+      }
+    }
+  ],
+  "total": 1,
+  "filters": {
+    "status": "running",
+    "job_type": "indexing"
+  }
+}
+```
+
+#### Delete Job
+```bash
+DELETE /api/jobs/{job_name}
+```
+
+**Response:**
+```json
+{
+  "message": "Job deleted successfully",
+  "job_name": "indexing-job-1234567890-abc123"
+}
+```
+
+### Index Management Endpoints
+
+#### Create Index
+```bash
+POST /api/indices
+Content-Type: application/json
+
+{
+  "index_name": "my-index",
+  "settings": {}
+}
+```
+
+#### Get Index
+```bash
+GET /api/indices/{index_id}
+```
+
+#### Update Index
+```bash
+PUT /api/indices/{index_id}
+```
+
+#### Delete Index
+```bash
+DELETE /api/indices/{index_id}
+```
+
+## 🧪 Testing
+
+### Automated Test Suite
+
+Run the complete test suite:
+
+```bash
+# Run all tests
+bash scripts/test-suite.sh
+
+# Run specific test
+bash scripts/test-deployment.sh      # Deployment health
+bash scripts/test-api-endpoints.sh   # API functionality
+bash scripts/test-job-parallelism.sh # Job management
+bash scripts/test-autoscaling.sh     # HPA testing
+```
+
+See the [Testing Guide](#complete-test-example) below for detailed test scenarios.
+
+### Manual Testing
+
+#### Test Health Endpoint
+```bash
+EXTERNAL_IP=$(kubectl get svc bemind-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+curl http://${EXTERNAL_IP}:5002/health
+```
+
+#### Test Job Creation
+```bash
+curl -X POST http://${EXTERNAL_IP}:5002/api/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parallelism": 2,
+    "completions": 1,
+    "job_type": "test"
+  }'
+```
+
+#### Port Forward for Local Testing
+```bash
+kubectl port-forward svc/bemind-api-service 8080:5002 -n default
+
+# Test locally
+curl http://localhost:8080/health
+```
+
+### Complete Test Example
+
+See [`scripts/test-suite.sh`](scripts/test-suite.sh) for a comprehensive test that validates:
+
+1. ✅ Pod status and readiness
+2. ✅ Deployment replica count
+3. ✅ Service endpoints
+4. ✅ Health check responses
+5. ✅ ConfigMap and Secret existence
+6. ✅ Job creation and management
+7. ✅ Autoscaling configuration
+8. ✅ Resource usage metrics
+9. ✅ Error handling
+10. ✅ API functionality
+
+**Example output:**
+```
+========================================
+BeMind Complete Test Suite
+========================================
+
+Test 1: Deployment Health...
+✓ All pods running (2/2)
+✓ Deployment ready (2/2 replicas)
+
+Test 2: API Health Check...
+✓ Health endpoint responding
+
+Test 3: Job Creation...
+✓ Job created successfully
+✓ Job status retrievable
+
+Test 4: Autoscaling...
+✓ HPA configured (2-10 replicas)
+
+All Tests Passed! ✓
+```
+
+## 📊 Monitoring & Troubleshooting
+
+### View Logs
+
+```bash
+# All API pods
+kubectl logs -l app=bemind-api -n default --tail=100 --follow
+
+# Specific pod
+kubectl logs <pod-name> -n default
+
+# Previous pod instance (if crashed)
+kubectl logs <pod-name> -n default --previous
+```
+
+### Check Resource Usage
+
+```bash
+# Node resources
+kubectl top nodes
+
+# Pod resources
+kubectl top pods -n default -l app=bemind-api
+
+# HPA status
+kubectl get hpa -n default --watch
+```
+
+### Debugging
+
+```bash
+# Describe pod for events
+kubectl describe pod <pod-name> -n default
+
+# Describe deployment
+kubectl describe deployment bemind-api -n default
+
+# Check secrets
+kubectl get secrets -n default
+kubectl describe secret bemind-secrets -n default
+
+# Execute into pod
+kubectl exec -it <pod-name> -n default -- /bin/bash
+```
+
+### Common Issues
+
+#### Pods not starting
+```bash
+# Check events
+kubectl get events -n default --sort-by='.lastTimestamp'
+
+# Check image pull
+kubectl describe pod <pod-name> -n default | grep -A 10 "Events:"
+```
+
+#### Service not accessible
+```bash
+# Check service endpoints
+kubectl get endpoints bemind-api-service -n default
+
+# Check load balancer
+kubectl get svc bemind-api-service -n default
+
+# Check network policies
+kubectl get networkpolicies -n default
+```
+
+#### Job failures
+```bash
+# List jobs
+kubectl get jobs -n default
+
+# Check job status
+kubectl describe job <job-name> -n default
+
+# View pod logs
+kubectl logs -l job-name=<job-name> -n default
+```
+
+## 🗑️ Cleanup
+
+### Remove Deployment (Keep Azure Resources)
+
+```bash
+# Clean up all Kubernetes resources
+bash scripts/cleanup.sh
+```
+
+This removes:
+- Deployments
+- Services
+- HPA
+- ConfigMaps
+- Secrets
+- ServiceAccounts
+- RBAC resources
+
+### Complete Cleanup (Including Tracked Resources)
+
+```bash
+# Clean up everything deployed by deploy-with-existing-services.sh
+bash scripts/cleanup-deployment.sh
+```
+
+This removes all tracked resources including:
+- All Kubernetes resources
+- Optionally: Container images from ACR
+- Tracking metadata
+
+### Manual Cleanup
+
+```bash
+# Delete specific resources
+kubectl delete deployment bemind-api -n default
+kubectl delete service bemind-api-service -n default
+kubectl delete hpa bemind-api-hpa -n default
+kubectl delete configmap bemind-config -n default
+kubectl delete secret bemind-secrets -n default
+
+# Delete namespace (removes everything)
+kubectl delete namespace default  # Be careful with default namespace!
+```
+
+## 📁 Project Structure
+
+```
+k8s-indexer-deployment/
+├── README.md                          # This file
+├── requirements.txt                   # Python dependencies
+├── .dockerignore                      # Docker build exclusions
+├── Dockerfile.api                     # API container image
+├── Dockerfile.indexer                 # Indexer container image
+├── .bemind-credentials.env.template   # Credentials template
+│
+├── src/
+│   ├── api/                          # Flask API application
+│   │   ├── __init__.py
+│   │   ├── app.py                    # Main Flask app
+│   │   └── routes/
+│   │       ├── __init__.py
+│   │       ├── health.py             # Health endpoints
+│   │       ├── indices.py            # Index management
+│   │       └── jobs.py               # Job management
+│   │
+│   ├── indexer/                      # Indexing job logic
+│   │   ├── __init__.py
+│   │   ├── job.py                    # Job execution
+│   │   └── processors/
+│   │       ├── __init__.py
+│   │       ├── blob_handler.py       # Azure Blob operations
+│   │       ├── pdf_converter.py      # PDF processing
+│   │       └── search_indexer.py     # Search indexing
+│   │
+│   └── utils/                        # Shared utilities
+│       ├── __init__.py
+│       ├── auth.py                   # Authentication
+│       └── logger.py                 # Logging setup
+│
+├── k8s/                              # Kubernetes manifests
+│   ├── namespace.yaml
+│   ├── configmap.yaml
+│   ├── secrets.yaml
+│   ├── rbac.yaml
+│   ├── serviceaccount.yaml
+│   ├── api-deployment.yaml           # Main API deployment
+│   ├── api-service.yaml
+│   ├── api-service-loadbalancer.yaml
+│   └── indexer-cronjob.yaml
+│
+└── scripts/                          # Deployment scripts
+    ├── bemind-env.sh                 # Environment configuration
+    ├── deploy-with-existing-services.sh  # Full deployment
+    ├── deploy-api.sh                 # API-only deployment
+    ├── deploy-production.sh          # Production deployment
+    ├── build-and-push.sh             # Build images
+    ├── setup-acr.sh                  # ACR setup
+    ├── create-secrets-existing.sh    # Interactive secrets
+    ├── create-secrets-from-env.sh    # File-based secrets
+    ├── cleanup.sh                    # Remove deployment
+    ├── cleanup-deployment.sh         # Complete cleanup
+    ├── test-suite.sh                 # Complete test suite
+    ├── test-deployment.sh            # Deployment tests
+    ├── test-api-endpoints.sh         # API tests
+    ├── test-job-parallelism.sh       # Job tests
+    └── test-autoscaling.sh           # HPA tests
+```
+
+## 🔐 Security Best Practices
+
+1. **Secrets Management**
+   - Never commit credentials to Git
+   - Use Kubernetes secrets for sensitive data
+   - Rotate secrets regularly
+   - Use Azure Key Vault integration (future enhancement)
+
+2. **RBAC**
+   - Minimal permissions for service accounts
+   - Separate accounts for API and Jobs
+   - Regular audit of permissions
+
+3. **Network Security**
+   - Use Network Policies (future enhancement)
+   - Restrict egress traffic
+   - Use Private Endpoints for Azure services (future enhancement)
+
+4. **Container Security**
+   - Run as non-root user
+   - Read-only root filesystem where possible
+   - Regular image scanning
+   - Multi-stage builds to minimize attack surface
+
+## 🚀 Performance Tuning
+
+### Resource Limits
+
+Edit [`k8s/api-deployment.yaml`](k8s/api-deployment.yaml):
+
+```yaml
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+```
+
+### Autoscaling
+
+Adjust HPA settings in [`k8s/api-deployment.yaml`](k8s/api-deployment.yaml):
+
+```yaml
+minReplicas: 2
+maxReplicas: 10
+metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+```
+
+### Job Parallelism
+
+Optimize job performance:
+
+```json
+{
+  "parallelism": 5,        // More parallel workers
+  "completions": 1,        // Single completion
+  "cpu_request": "1000m",  // More CPU
+  "memory_request": "2Gi"  // More memory
+}
+```
+
+## 📞 Support & Contribution
+
+### Getting Help
+
+1. Check the [Troubleshooting](#monitoring--troubleshooting) section
+2. Review logs: `kubectl logs -l app=bemind-api -n default --tail=100`
+3. Check Azure Portal for service health
+4. Review Kubernetes events: `kubectl get events -n default --sort-by='.lastTimestamp'`
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly using [`scripts/test-suite.sh`](scripts/test-suite.sh)
+5. Submit a pull request
+
+## 📄 License
+
+[Your License Here]
+
+## 🙏 Acknowledgments
+
+- Azure Kubernetes Service team
+- Kubernetes community
+- Flask framework
+- OpenAI and Azure Cognitive Services teams
+
+---
+
+**Version:** 1.0.0  
+**Last Updated:** 2024-01-15  
+**Maintained by:** BeMind Team
