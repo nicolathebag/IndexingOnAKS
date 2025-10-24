@@ -1,7 +1,7 @@
 #!/bin/bash
 # ================================================================
 # BeMind API Deployment Script (No Docker Required)
-# Deploys directly to AKS - images pulled from ACR by Kubernetes
+# Deploys directly to AKS - assumes ACR integration is configured
 # ================================================================
 
 set -e  # Exit on error
@@ -29,7 +29,6 @@ fi
 # Step 1: Login to Azure (if not already logged in)
 echo -e "${YELLOW}Step 1: Checking Azure login...${NC}"
 az account show > /dev/null 2>&1 || az login
-az account set --subscription "$SUBSCRIPTION_ID"
 
 # Step 2: Get AKS credentials
 echo -e "${YELLOW}Step 2: Getting AKS credentials...${NC}"
