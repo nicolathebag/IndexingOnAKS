@@ -8,14 +8,8 @@ metadata:
   labels:
     app: bemind-api
     version: v1.0.0
-    component: api
 spec:
   replicas: 2
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   selector:
     matchLabels:
       app: bemind-api
@@ -24,86 +18,139 @@ spec:
       labels:
         app: bemind-api
         version: v1.0.0
-        component: api
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "5002"
-        prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: bemind-indexer-sa
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
+      
+      # Pod Anti-Affinity - Required by Azure Policy
+      # Ensures pods are distributed across different nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - bemind-api
+                topologyKey: kubernetes.io/hostname
+      
       containers:
-      - name: api
-        image: devbemindcontainerregistryse.azurecr.io/bemind-api:v1.0.0
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 5002
-          name: http
-          protocol: TCP
-        env:
-        - name: K8S_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: POD_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
-        - name: INDEXER_IMAGE
-          value: "devbemindcontainerregistryse.azurecr.io/bemind-indexer:v1.0.0"
-        - name: JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: api-secrets
-              key: JWT_SECRET
-        - name: GOTENBERG_URL
-          valueFrom:
-            configMapKeyRef:
-              name: bemind-app-config
-              key: gotenberg_url
-        - name: ENVIRONMENT
-          value: "production"
-        - name: LOG_LEVEL
-          value: "INFO"
-        resources:
-          requests:
-            cpu: 250m
-            memory: 512Mi
-          limits:
-            cpu: 1000m
-            memory: 2Gi
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 5002
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          successThreshold: 1
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 5002
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          successThreshold: 1
-          failureThreshold: 3
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
-          capabilities:
-            drop:
-            - ALL
-      terminationGracePeriodSeconds: 30
+        - name: api
+          image: devbemindcontainerregistryse.azurecr.io/bemind-api:v1.0.0
+          imagePullPolicy: Always
+          
+          ports:
+            - name: http
+              containerPort: 5002
+              protocol: TCP
+          
+          env:
+            # Azure OpenAI Configuration
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: azure-openai-secret
+                  key: AZURE_OPENAI_ENDPOINT
+            - name: AZURE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: azure-openai-secret
+                  key: AZURE_OPENAI_API_KEY
+            - name: AZURE_OPENAI_API_VERSION
+              valueFrom:
+                secretKeyRef:
+                  name: azure-openai-secret
+                  key: AZURE_OPENAI_API_VERSION
+            - name: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
+              valueFrom:
+                secretKeyRef:
+                  name: azure-openai-secret
+                  key: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
+            - name: AZURE_OPENAI_GPT4_DEPLOYMENT
+              valueFrom:
+                secretKeyRef:
+                  name: azure-openai-secret
+                  key: AZURE_OPENAI_GPT4_DEPLOYMENT
+            
+            # Azure Cognitive Search Configuration
+            - name: AZURE_SEARCH_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: azure-search-secret
+                  key: AZURE_SEARCH_ENDPOINT
+            - name: AZURE_SEARCH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: azure-search-secret
+                  key: AZURE_SEARCH_KEY
+            - name: AZURE_SEARCH_API_VERSION
+              valueFrom:
+                secretKeyRef:
+                  name: azure-search-secret
+                  key: AZURE_SEARCH_API_VERSION
+            
+            # Azure Storage Configuration
+            - name: AZURE_STORAGE_ACCOUNT_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: azure-storage-secret
+                  key: AZURE_STORAGE_ACCOUNT_NAME
+            - name: AZURE_STORAGE_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: azure-storage-secret
+                  key: AZURE_STORAGE_CONNECTION_STRING
+            - name: AZURE_STORAGE_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: azure-storage-secret
+                  key: AZURE_STORAGE_ENDPOINT
+            
+            # API Secrets
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: JWT_SECRET
+            
+            # Application Configuration
+            - name: FLASK_ENV
+              value: "production"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5002
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
 ---
 apiVersion: v1
 kind: Service
@@ -114,17 +161,14 @@ metadata:
     app: bemind-api
 spec:
   type: ClusterIP
-  sessionAffinity: ClientIP
-  sessionAffinityConfig:
-    clientIP:
-      timeoutSeconds: 10800
   selector:
     app: bemind-api
   ports:
-  - port: 5002
-    targetPort: 5002
-    protocol: TCP
-    name: http
+    - name: http
+      port: 5002
+      targetPort: 5002
+      protocol: TCP
+
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
