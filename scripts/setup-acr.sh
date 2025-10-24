@@ -27,55 +27,34 @@ echo "╚═══════════════════════�
 
 # Check if ACR exists
 echo ""
-echo "Checking if ACR exists..."
-ACR_EXISTS=$(az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" 2>/dev/null || echo "")
+echo "Verifying ACR..."
+ACR_EXISTS=$(az acr show \
+    --name "$ACR_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query "name" \
+    -o tsv 2>/dev/null || echo "")
 
 if [ -z "$ACR_EXISTS" ]; then
-    echo "Creating Azure Container Registry..."
-    
-    az acr create \
-        --resource-group "$RESOURCE_GROUP" \
-        --name "$ACR_NAME" \
-        --sku Standard \
-        --location "$LOCATION" \
-        --admin-enabled false
-    
-    echo "✓ ACR created: $ACR_NAME"
+    echo "Error: ACR '$ACR_NAME' not found in resource group '$RESOURCE_GROUP'"
+    echo "Please create the ACR first or update ACR_NAME in bemind-env.sh"
+    exit 1
 else
-    echo "✓ ACR already exists: $ACR_NAME"
-fi
-
-# Check and attach ACR to AKS (only if not already attached)
-echo ""
-echo "Checking ACR attachment to AKS..."
-
-# Try to attach and capture the output
-ATTACH_OUTPUT=$(az aks update \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "$AKS_CLUSTER_NAME" \
-    --attach-acr "$ACR_NAME" 2>&1 || echo "")
-
-if echo "$ATTACH_OUTPUT" | grep -q "role assignment already exists\|is already attached"; then
-    echo "✓ ACR already attached to AKS (skipping)"
-elif echo "$ATTACH_OUTPUT" | grep -q "error\|Error"; then
-    echo "⚠ Warning: Could not verify ACR attachment"
-    echo "$ATTACH_OUTPUT"
-else
-    echo "✓ ACR attached to AKS with managed identity"
+    echo "✓ ACR exists: $ACR_NAME"
 fi
 
 # Get ACR login server
 export ACR_LOGIN_SERVER=$(az acr show \
     --name "$ACR_NAME" \
     --resource-group "$RESOURCE_GROUP" \
-    --query loginServer -o tsv)
+    --query loginServer \
+    -o tsv)
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "ACR Configuration:"
 echo "  Name:         $ACR_NAME"
 echo "  Login Server: $ACR_LOGIN_SERVER"
-echo "  Status:       Ready for use"
+echo "  Note:         Assuming ACR is already attached to AKS"
 echo "════════════════════════════════════════════════════════════════"
 
 # Update environment file
