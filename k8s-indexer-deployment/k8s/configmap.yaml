@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bemind-app-config
+  namespace: bemind
+  labels:
+    app: bemind
+    component: config
+data:
+  # API Configuration
+  api_port: "5002"
+  environment: "production"
+  log_level: "INFO"
+  
+  # Service URLs
+  gotenberg_url: "http://gotenberg-service.bemind.svc.cluster.local:3000"
+  
+  # Azure API Versions
+  azure_openai_api_version: "2024-02-01"
+  azure_search_api_version: "2023-11-01"
+  
+  # Job Configuration
+  job_ttl_seconds: "3600"
+  job_backoff_limit: "2"
+  
+  # Resource Limits for Jobs
+  job_cpu_request: "500m"
+  job_memory_request: "1Gi"
+  job_cpu_limit: "2000m"
+  job_memory_limit: "4Gi"

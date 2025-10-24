@@ -1,0 +1,69 @@
+# filepath: Dockerfile.indexer
+# ================================================================
+# BeMind Indexer - Production Dockerfile
+# Optimized for batch processing jobs
+# ================================================================
+
+# Stage 1: Build dependencies
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Create virtual environment and install dependencies
+RUN python -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# ================================================================
+# Stage 2: Runtime image
+FROM python:3.11-slim
+
+LABEL maintainer="BeMind Team"
+LABEL version="1.0"
+LABEL description="BeMind Indexer for processing documents and creating search indices"
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Copy application code
+COPY src/indexer/ /app/
+COPY src/utils/ /app/utils/
+
+# Create non-root user
+RUN groupadd -r indexer && \
+    useradd -r -g indexer -u 1000 -m -s /bin/bash indexer && \
+    chown -R indexer:indexer /app && \
+    chmod -R 755 /app
+
+# Set environment variables
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+USER indexer
+
+# Health check for job completion
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD pgrep -f "python.*job.py" > /dev/null || exit 0
+
+# Run indexer job
+CMD ["python", "-u", "job.py"]
