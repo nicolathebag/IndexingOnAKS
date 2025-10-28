@@ -1,9 +1,3 @@
----
-
-## **Phase 4: Complete Production Deployment Script**
-
-````bash
-cat > ~/k8s-indexer-deployment/scripts/deploy-production.sh <<'EOF'
 #!/bin/bash
 
 set -e
@@ -119,7 +113,4 @@ echo ""
 echo "To update deployment:"
 echo "  bash $SCRIPT_DIR/build-and-push.sh v1.0.1"
 echo "  kubectl set image deployment/bemind-api api=${ACR_LOGIN_SERVER}/bemind-api:v1.0.1 -n $NAMESPACE"
-EOF
-
-chmod +x ~/k8s-indexer-deployment/scripts/deploy-production.sh
 ````
