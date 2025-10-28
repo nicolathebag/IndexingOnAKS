@@ -568,13 +568,11 @@ Run the complete test suite:
 
 ```bash
 # Run all tests
-bash scripts/test-suite.sh
+bash scripts/complete-test-suite.sh
 
 # Run specific test
-bash scripts/test-deployment.sh      # Deployment health
-bash scripts/test-api-endpoints.sh   # API functionality
 bash scripts/test-job-parallelism.sh # Job management
-bash scripts/test-autoscaling.sh     # HPA testing
+bash scripts/test-cloudshell.sh      # Cloud shell testing
 ```
 
 See the [Testing Guide](#complete-test-example) below for detailed test scenarios.
@@ -608,7 +606,7 @@ curl http://localhost:8080/health
 
 ### Complete Test Example
 
-See [`scripts/test-suite.sh`](scripts/test-suite.sh) for a comprehensive test that validates:
+See [`scripts/complete-test-suite.sh`](scripts/complete-test-suite.sh) for a comprehensive test that validates:
 
 1. ✅ Pod status and readiness
 2. ✅ Deployment replica count
@@ -819,17 +817,19 @@ k8s-indexer-deployment/
     ├── deploy-with-existing-services.sh  # Full deployment
     ├── deploy-api.sh                 # API-only deployment
     ├── deploy-production.sh          # Production deployment
+    ├── deploy-only.sh                # Deploy only
+    ├── deploy-env.sh                 # Deploy environment
+    ├── deploy.sh                     # General deployment
     ├── build-and-push.sh             # Build images
     ├── setup-acr.sh                  # ACR setup
     ├── create-secrets-existing.sh    # Interactive secrets
     ├── create-secrets-from-env.sh    # File-based secrets
+    ├── create-bemind-secrets.sh      # Create BeMind secrets
     ├── cleanup.sh                    # Remove deployment
     ├── cleanup-deployment.sh         # Complete cleanup
-    ├── test-suite.sh                 # Complete test suite
-    ├── test-deployment.sh            # Deployment tests
-    ├── test-api-endpoints.sh         # API tests
+    ├── complete-test-suite.sh        # Complete test suite
     ├── test-job-parallelism.sh       # Job tests
-    └── test-autoscaling.sh           # HPA tests
+    └── test-cloudshell.sh            # Cloud shell tests
 ```
 
 ## 🔐 Security Best Practices
@@ -915,7 +915,7 @@ Optimize job performance:
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly using [`scripts/test-suite.sh`](scripts/test-suite.sh)
+4. Test thoroughly using [`scripts/complete-test-suite.sh`](scripts/complete-test-suite.sh)
 5. Submit a pull request
 
 ## 📄 License
