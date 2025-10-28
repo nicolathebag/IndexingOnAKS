@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test different parallelism configurations with conflict handling
 
-EXTERNAL_IP=$(kubectl get svc bemind-api-service -n bemindindexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+EXTERNAL_IP=$(kubectl get svc indexer-api-service -n indexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 API_URL="http://${EXTERNAL_IP}/api/jobs"
 
 echo "Testing Job Parallelism Configurations"

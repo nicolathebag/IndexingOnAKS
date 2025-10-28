@@ -12,12 +12,12 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Source environment
-if [ -f "$HOME/bemind-env.sh" ]; then
-    source "$HOME/bemind-env.sh"
-elif [ -f "$SCRIPT_DIR/bemind-env.sh" ]; then
-    source "$SCRIPT_DIR/bemind-env.sh"
+if [ -f "$HOME/env.sh" ]; then
+    source "$HOME/env.sh"
+elif [ -f "$SCRIPT_DIR/env.sh" ]; then
+    source "$SCRIPT_DIR/env.sh"
 else
-    echo "Error: bemind-env.sh not found"
+    echo "Error: env.sh not found"
     exit 1
 fi
 
@@ -61,22 +61,22 @@ check_image_exists() {
 echo ""
 echo "Step 2/5: Checking if API image exists..."
 API_EXISTS=false
-if check_image_exists "bemind-api" "$VERSION"; then
-    echo "✓ Image bemind-api:$VERSION already exists in ACR"
+if check_image_exists "indexer-api" "$VERSION"; then
+    echo "✓ Image indexer-api:$VERSION already exists in ACR"
     API_EXISTS=true
 else
-    echo "ℹ Image bemind-api:$VERSION not found in ACR"
+    echo "ℹ Image indexer-api:$VERSION not found in ACR"
 fi
 
 # Check Indexer image
 echo ""
 echo "Step 3/5: Checking if Indexer image exists..."
 INDEXER_EXISTS=false
-if check_image_exists "bemind-indexer" "$VERSION"; then
-    echo "✓ Image bemind-indexer:$VERSION already exists in ACR"
+if check_image_exists "indexer" "$VERSION"; then
+    echo "✓ Image indexer:$VERSION already exists in ACR"
     INDEXER_EXISTS=true
 else
-    echo "ℹ Image bemind-indexer:$VERSION not found in ACR"
+    echo "ℹ Image indexer:$VERSION not found in ACR"
 fi
 
 # Build API image if needed
@@ -89,9 +89,9 @@ else
     echo "Building and pushing API image..."
     az acr build \
         --registry "$ACR_NAME" \
-        --image "bemind-api:${VERSION}" \
-        --image "bemind-api:${VERSION}-${BUILD_NUMBER}" \
-        --image "bemind-api:latest" \
+        --image "indexer-api:${VERSION}" \
+        --image "indexer-api:${VERSION}-${BUILD_NUMBER}" \
+        --image "indexer-api:latest" \
         --file "$PROJECT_ROOT/Dockerfile.api" \
         --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
         --build-arg VERSION="${VERSION}" \
@@ -110,9 +110,9 @@ else
     echo "Building and pushing Indexer image..."
     az acr build \
         --registry "$ACR_NAME" \
-        --image "bemind-indexer:${VERSION}" \
-        --image "bemind-indexer:${VERSION}-${BUILD_NUMBER}" \
-        --image "bemind-indexer:latest" \
+        --image "indexer:${VERSION}" \
+        --image "indexer:${VERSION}-${BUILD_NUMBER}" \
+        --image "indexer:latest" \
         --file "$PROJECT_ROOT/Dockerfile.indexer" \
         --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
         --build-arg VERSION="${VERSION}" \
@@ -138,8 +138,8 @@ else
     echo "Images pushed to ACR:"
 fi
 
-echo "  ${ACR_LOGIN_SERVER}/bemind-api:${VERSION}"
-echo "  ${ACR_LOGIN_SERVER}/bemind-indexer:${VERSION}"
+echo "  ${ACR_LOGIN_SERVER}/indexer-api:${VERSION}"
+echo "  ${ACR_LOGIN_SERVER}/indexer:${VERSION}"
 echo "════════════════════════════════════════════════════════════════"
 
 # Update deployment files with version
@@ -148,13 +148,13 @@ echo "Updating Kubernetes manifests with new image versions..."
 
 # Update API deployment
 if [ -f "$PROJECT_ROOT/k8s/api-deployment.yaml" ]; then
-    sed -i "s|image:.*bemind-api:.*|image: ${ACR_LOGIN_SERVER}/bemind-api:${VERSION}|g" \
+    sed -i "s|image:.*indexer-api:.*|image: ${ACR_LOGIN_SERVER}/indexer-api:${VERSION}|g" \
         "$PROJECT_ROOT/k8s/api-deployment.yaml"
     echo "✓ Updated api-deployment.yaml"
 fi
 
 # Update environment file
-ENV_FILE="$HOME/bemind-env.sh"
+ENV_FILE="$HOME/env.sh"
 if [ -f "$ENV_FILE" ]; then
     if ! grep -q "CURRENT_VERSION" "$ENV_FILE"; then
         echo "export CURRENT_VERSION='$VERSION'" >> "$ENV_FILE"

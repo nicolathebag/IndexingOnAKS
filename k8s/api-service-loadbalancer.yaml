@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: bemind-api-service
-  namespace: bemindindexer
+  name: indexer-api-service
+  namespace: indexer
   labels:
-    app: bemind-api
+    app: indexer-api
     component: api
   annotations:
     service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /health
@@ -12,7 +12,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    app: bemind-api
+    app: indexer-api
     component: api
   ports:
     - name: http

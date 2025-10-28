@@ -6,20 +6,20 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: bemind-indexer-sa
-  namespace: bemindindexer
+  name: indexer-sa
+  namespace: indexer
   labels:
-    app: bemind
+    app: indexer
     component: indexer
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: bemind-indexer-role
-  namespace: bemindindexer
+  name: indexer-role
+  namespace: indexer
   labels:
-    app: bemind
+    app: indexer
     component: indexer
 rules:
   # Allow creating and managing jobs
@@ -46,16 +46,16 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: bemind-indexer-rolebinding
-  namespace: bemindindexer
+  name: indexer-rolebinding
+  namespace: indexer
   labels:
-    app: bemind
+    app: indexer
     component: indexer
 subjects:
   - kind: ServiceAccount
-    name: bemind-indexer-sa
-    namespace: bemindindexer
+    name: indexer-sa
+    namespace: indexer
 roleRef:
   kind: Role
-  name: bemind-indexer-role
+  name: indexer-role
   apiGroup: rbac.authorization.k8s.io

@@ -12,12 +12,12 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Source environment
-if [ -f "$HOME/bemind-env.sh" ]; then
-    source "$HOME/bemind-env.sh"
-elif [ -f "$SCRIPT_DIR/bemind-env.sh" ]; then
-    source "$SCRIPT_DIR/bemind-env.sh"
+if [ -f "$HOME/env.sh" ]; then
+    source "$HOME/env.sh"
+elif [ -f "$SCRIPT_DIR/env.sh" ]; then
+    source "$SCRIPT_DIR/env.sh"
 else
-    echo "Error: bemind-env.sh not found"
+    echo "Error: env.sh not found"
     exit 1
 fi
 
@@ -36,7 +36,7 @@ ACR_EXISTS=$(az acr show \
 
 if [ -z "$ACR_EXISTS" ]; then
     echo "Error: ACR '$ACR_NAME' not found in resource group '$RESOURCE_GROUP'"
-    echo "Please create the ACR first or update ACR_NAME in bemind-env.sh"
+    echo "Please create the ACR first or update ACR_NAME in env.sh"
     exit 1
 else
     echo "✓ ACR exists: $ACR_NAME"
@@ -58,7 +58,7 @@ echo "  Note:         Assuming ACR is already attached to AKS"
 echo "════════════════════════════════════════════════════════════════"
 
 # Update environment file
-ENV_FILE="$HOME/bemind-env.sh"
+ENV_FILE="$HOME/env.sh"
 if [ -f "$ENV_FILE" ]; then
     if ! grep -q "ACR_LOGIN_SERVER" "$ENV_FILE"; then
         echo "export ACR_LOGIN_SERVER='$ACR_LOGIN_SERVER'" >> "$ENV_FILE"

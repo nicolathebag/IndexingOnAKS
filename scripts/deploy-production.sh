@@ -3,7 +3,7 @@
 set -e
 
 # ================================================================
-# BeMind Production Deployment Script
+# Indexing Production Deployment Script
 # Full deployment with ACR, versioning, and best practices
 # ================================================================
 
@@ -12,17 +12,17 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Source environment
-if [ -f "$HOME/bemind-env.sh" ]; then
-    source "$HOME/bemind-env.sh"
-elif [ -f "$SCRIPT_DIR/bemind-env.sh" ]; then
-    source "$SCRIPT_DIR/bemind-env.sh"
+if [ -f "$HOME/env.sh" ]; then
+    source "$HOME/env.sh"
+elif [ -f "$SCRIPT_DIR/env.sh" ]; then
+    source "$SCRIPT_DIR/env.sh"
 else
-    echo "Error: bemind-env.sh not found"
+    echo "Error: env.sh not found"
     exit 1
 fi
 
 echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║       BeMind Production Deployment to AKS                     ║"
+echo "║       Indexing Production Deployment to AKS                     ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 
 cd "$PROJECT_ROOT"
@@ -33,8 +33,8 @@ echo "Step 1/7: Setting up Azure Container Registry..."
 bash "$SCRIPT_DIR/setup-acr.sh"
 
 # Reload environment to get ACR_LOGIN_SERVER
-if [ -f "$HOME/bemind-env.sh" ]; then
-    source "$HOME/bemind-env.sh"
+if [ -f "$HOME/env.sh" ]; then
+    source "$HOME/env.sh"
 fi
 
 # Step 2: Build and push images
@@ -65,20 +65,20 @@ echo ""
 echo "Step 5/7: Creating secrets..."
 
 # Check if credentials file exists
-if [ -f "$HOME/.bemind-credentials.env" ]; then
-    echo "✓ Found credentials file: $HOME/.bemind-credentials.env"
+if [ -f "$HOME/.credentials.env" ]; then
+    echo "✓ Found credentials file: $HOME/.credentials.env"
     bash "$SCRIPT_DIR/create-secrets-existing.sh"
-elif [ -f "$SCRIPT_DIR/bemind-credentials.env" ]; then
-    echo "✓ Found credentials file: $SCRIPT_DIR/bemind-credentials.env"
+elif [ -f "$SCRIPT_DIR/credentials.env" ]; then
+    echo "✓ Found credentials file: $SCRIPT_DIR/credentials.env"
     bash "$SCRIPT_DIR/create-secrets-existing.sh"
 else
     echo "⚠️  No credentials file found. Creating template..."
-    echo "   Please edit ~/.bemind-credentials.env with your Azure service credentials"
+    echo "   Please edit ~/.credentials.env with your Azure service credentials"
     echo "   Then re-run this script."
     bash "$SCRIPT_DIR/create-secrets-from-env.sh"
     echo ""
     echo "❌ Deployment paused - please configure credentials and re-run:"
-    echo "   nano ~/.bemind-credentials.env"
+    echo "   nano ~/.credentials.env"
     echo "   bash scripts/deploy-production.sh"
     exit 1
 fi
@@ -98,7 +98,7 @@ echo "Step 7/7: Deploying applications..."
 kubectl apply -f "$PROJECT_ROOT/k8s/api-deployment.yaml"
 
 echo "Waiting for API deployment to be ready..."
-kubectl rollout status deployment/bemind-api -n "$NAMESPACE" --timeout=300s
+kubectl rollout status deployment/indexer-api -n "$NAMESPACE" --timeout=300s
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
@@ -110,7 +110,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "Image Versions Deployed:"
 echo "════════════════════════════════════════════════════════════════"
-kubectl get deployment bemind-api -n "$NAMESPACE" \
+kubectl get deployment indexer-api -n "$NAMESPACE" \
     -o jsonpath='{.spec.template.spec.containers[0].image}' | xargs echo "API:"
 
 echo ""
@@ -125,11 +125,11 @@ echo "✓ Production deployment completed successfully!"
 echo ""
 echo "Next steps:"
 echo "  1. Verify deployment: kubectl get pods -n $NAMESPACE"
-echo "  2. View logs: kubectl logs -l app=bemind-api -n $NAMESPACE"
-echo "  3. Test API: kubectl port-forward svc/bemind-api-service 8080:5002 -n $NAMESPACE"
+echo "  2. View logs: kubectl logs -l app=indexer-api -n $NAMESPACE"
+echo "  3. Test API: kubectl port-forward svc/indexer-api-service 8080:5002 -n $NAMESPACE"
 echo "  4. Monitor: kubectl get hpa -n $NAMESPACE --watch"
 echo ""
 echo "To update deployment:"
 echo "  bash $SCRIPT_DIR/build-and-push.sh v1.0.1"
-echo "  kubectl set image deployment/bemind-api api=${ACR_LOGIN_SERVER}/bemind-api:v1.0.1 -n $NAMESPACE"
+echo "  kubectl set image deployment/indexer-api api=${ACR_LOGIN_SERVER}/indexer-api:v1.0.1 -n $NAMESPACE"
 ````

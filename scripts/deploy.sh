@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the namespace
-NAMESPACE="bemindindexer"
+NAMESPACE="indexer"
 
 # Apply the Kubernetes configurations
 kubectl apply -f k8s/namespace.yaml

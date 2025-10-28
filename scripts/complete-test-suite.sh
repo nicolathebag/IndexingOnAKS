@@ -1,6 +1,6 @@
 #!/bin/bash
 # ================================================================
-# BeMind Complete Test Suite
+# Indexing Complete Test Suite
 # Comprehensive testing of all deployment components
 # ================================================================
 
@@ -22,7 +22,7 @@ TESTS_TOTAL=0
 NAMESPACE="default"
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}BeMind Complete Test Suite${NC}"
+echo -e "${BLUE}Indexing Complete Test Suite${NC}"
 echo -e "${BLUE}========================================${NC}\n"
 
 # Helper function to run test
@@ -51,10 +51,10 @@ test_k8s_connection() {
 
 # Test 2: Pod Status
 test_pod_status() {
-    local running_pods=$(kubectl get pods -n $NAMESPACE -l app=bemind-api -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' | wc -w)
+    local running_pods=$(kubectl get pods -n $NAMESPACE -l app=indexer-api -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' | wc -w)
     if [ "$running_pods" -gt 0 ]; then
         echo "  Running pods: $running_pods"
-        kubectl get pods -n $NAMESPACE -l app=bemind-api
+        kubectl get pods -n $NAMESPACE -l app=indexer-api
         return 0
     fi
     return 1
@@ -62,8 +62,8 @@ test_pod_status() {
 
 # Test 3: Deployment Readiness
 test_deployment_ready() {
-    local ready=$(kubectl get deployment bemind-api -n $NAMESPACE -o jsonpath='{.status.readyReplicas}')
-    local desired=$(kubectl get deployment bemind-api -n $NAMESPACE -o jsonpath='{.spec.replicas}')
+    local ready=$(kubectl get deployment indexer-api -n $NAMESPACE -o jsonpath='{.status.readyReplicas}')
+    local desired=$(kubectl get deployment indexer-api -n $NAMESPACE -o jsonpath='{.spec.replicas}')
     
     if [ "$ready" == "$desired" ] && [ "$ready" -gt 0 ]; then
         echo "  Replicas: $ready/$desired ready"
@@ -75,7 +75,7 @@ test_deployment_ready() {
 
 # Test 4: Service Endpoints
 test_service_endpoints() {
-    local endpoints=$(kubectl get endpoints bemind-api-service -n $NAMESPACE -o jsonpath='{.subsets[*].addresses[*].ip}')
+    local endpoints=$(kubectl get endpoints indexer-api-service -n $NAMESPACE -o jsonpath='{.subsets[*].addresses[*].ip}')
     if [ -n "$endpoints" ]; then
         echo "  Endpoints: $endpoints"
         return 0
@@ -86,7 +86,7 @@ test_service_endpoints() {
 # Test 5: Health Check (Internal)
 test_health_internal() {
     local health=$(kubectl run test-health-$$  --image=curlimages/curl:latest --rm -i --restart=Never -- \
-        curl -s http://bemind-api-service.${NAMESPACE}.svc.cluster.local:5002/health 2>/dev/null || echo "failed")
+        curl -s http://indexer-api-service.${NAMESPACE}.svc.cluster.local:5002/health 2>/dev/null || echo "failed")
     
     if [[ "$health" == *"healthy"* ]]; then
         echo "  Response: $health"
@@ -98,8 +98,8 @@ test_health_internal() {
 
 # Test 6: ConfigMap Exists
 test_configmap() {
-    if kubectl get configmap bemind-config -n $NAMESPACE > /dev/null 2>&1; then
-        local log_level=$(kubectl get configmap bemind-config -n $NAMESPACE -o jsonpath='{.data.LOG_LEVEL}')
+    if kubectl get configmap indexer-config -n $NAMESPACE > /dev/null 2>&1; then
+        local log_level=$(kubectl get configmap indexer-config -n $NAMESPACE -o jsonpath='{.data.LOG_LEVEL}')
         echo "  LOG_LEVEL: $log_level"
         return 0
     fi
@@ -108,8 +108,8 @@ test_configmap() {
 
 # Test 7: Secrets Exist
 test_secrets() {
-    if kubectl get secret bemind-secrets -n $NAMESPACE > /dev/null 2>&1; then
-        local keys=$(kubectl get secret bemind-secrets -n $NAMESPACE -o jsonpath='{.data}' | grep -o '"[^"]*":' | wc -l)
+    if kubectl get secret indexer-secrets -n $NAMESPACE > /dev/null 2>&1; then
+        local keys=$(kubectl get secret indexer-secrets -n $NAMESPACE -o jsonpath='{.data}' | grep -o '"[^"]*":' | wc -l)
         echo "  Secret keys: $keys"
         return 0
     fi
@@ -118,11 +118,11 @@ test_secrets() {
 
 # Test 8: HPA Configuration
 test_hpa() {
-    if kubectl get hpa bemind-api-hpa -n $NAMESPACE > /dev/null 2>&1; then
-        local min=$(kubectl get hpa bemind-api-hpa -n $NAMESPACE -o jsonpath='{.spec.minReplicas}')
-        local max=$(kubectl get hpa bemind-api-hpa -n $NAMESPACE -o jsonpath='{.spec.maxReplicas}')
+    if kubectl get hpa indexer-api-hpa -n $NAMESPACE > /dev/null 2>&1; then
+        local min=$(kubectl get hpa indexer-api-hpa -n $NAMESPACE -o jsonpath='{.spec.minReplicas}')
+        local max=$(kubectl get hpa indexer-api-hpa -n $NAMESPACE -o jsonpath='{.spec.maxReplicas}')
         echo "  Replicas: ${min}-${max}"
-        kubectl get hpa bemind-api-hpa -n $NAMESPACE
+        kubectl get hpa indexer-api-hpa -n $NAMESPACE
         return 0
     fi
     return 1
@@ -130,12 +130,12 @@ test_hpa() {
 
 # Test 9: RBAC Configuration
 test_rbac() {
-    if kubectl get serviceaccount bemind-indexer-sa -n $NAMESPACE > /dev/null 2>&1 && \
-       kubectl get role bemind-indexer-role -n $NAMESPACE > /dev/null 2>&1 && \
-       kubectl get rolebinding bemind-indexer-rolebinding -n $NAMESPACE > /dev/null 2>&1; then
-        echo "  ServiceAccount: bemind-indexer-sa"
-        echo "  Role: bemind-indexer-role"
-        echo "  RoleBinding: bemind-indexer-rolebinding"
+    if kubectl get serviceaccount indexer-sa -n $NAMESPACE > /dev/null 2>&1 && \
+       kubectl get role indexer-role -n $NAMESPACE > /dev/null 2>&1 && \
+       kubectl get rolebinding indexer-rolebinding -n $NAMESPACE > /dev/null 2>&1; then
+        echo "  ServiceAccount: indexer-sa"
+        echo "  Role: indexer-role"
+        echo "  RoleBinding: indexer-rolebinding"
         return 0
     fi
     return 1
@@ -143,7 +143,7 @@ test_rbac() {
 
 # Test 10: External Access (if LoadBalancer)
 test_external_access() {
-    local external_ip=$(kubectl get svc bemind-api-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+    local external_ip=$(kubectl get svc indexer-api-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
     
     if [ -n "$external_ip" ] && [ "$external_ip" != "null" ]; then
         echo "  External IP: $external_ip"
@@ -165,7 +165,7 @@ test_external_access() {
 # Test 11: Job Creation via API
 test_job_creation() {
     # Port forward in background
-    kubectl port-forward svc/bemind-api-service 18080:5002 -n $NAMESPACE > /dev/null 2>&1 &
+    kubectl port-forward svc/indexer-api-service 18080:5002 -n $NAMESPACE > /dev/null 2>&1 &
     local pf_pid=$!
     sleep 3
     
@@ -194,7 +194,7 @@ test_job_creation() {
 test_metrics() {
     if kubectl top nodes > /dev/null 2>&1; then
         echo "  Node metrics available"
-        kubectl top pods -n $NAMESPACE -l app=bemind-api 2>/dev/null || echo "  Pod metrics not ready yet"
+        kubectl top pods -n $NAMESPACE -l app=indexer-api 2>/dev/null || echo "  Pod metrics not ready yet"
         return 0
     else
         echo "  ⚠ Metrics server not available (optional)"
@@ -204,7 +204,7 @@ test_metrics() {
 
 # Test 13: Application Logs
 test_logs() {
-    local pod_name=$(kubectl get pods -n $NAMESPACE -l app=bemind-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    local pod_name=$(kubectl get pods -n $NAMESPACE -l app=indexer-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
     
     if [ -n "$pod_name" ]; then
         local errors=$(kubectl logs $pod_name -n $NAMESPACE --tail=100 2>/dev/null | grep -i "error" | wc -l)
