@@ -63,7 +63,26 @@ echo "✓ Namespace created"
 # Step 5: Create secrets
 echo ""
 echo "Step 5/7: Creating secrets..."
-bash "$SCRIPT_DIR/create-secrets-existing.sh"
+
+# Check if credentials file exists
+if [ -f "$HOME/.bemind-credentials.env" ]; then
+    echo "✓ Found credentials file: $HOME/.bemind-credentials.env"
+    bash "$SCRIPT_DIR/create-secrets-existing.sh"
+elif [ -f "$SCRIPT_DIR/bemind-credentials.env" ]; then
+    echo "✓ Found credentials file: $SCRIPT_DIR/bemind-credentials.env"
+    bash "$SCRIPT_DIR/create-secrets-existing.sh"
+else
+    echo "⚠️  No credentials file found. Creating template..."
+    echo "   Please edit ~/.bemind-credentials.env with your Azure service credentials"
+    echo "   Then re-run this script."
+    bash "$SCRIPT_DIR/create-secrets-from-env.sh"
+    echo ""
+    echo "❌ Deployment paused - please configure credentials and re-run:"
+    echo "   nano ~/.bemind-credentials.env"
+    echo "   bash scripts/deploy-production.sh"
+    exit 1
+fi
+
 echo "✓ Secrets created"
 
 # Step 6: Apply configurations
