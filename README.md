@@ -367,8 +367,14 @@ http://<EXTERNAL_IP>:5002
 
 Get external IP:
 ```bash
+# First, ensure kubectl is connected to your AKS cluster
+az aks get-credentials --resource-group YOUR_RESOURCE_GROUP --name YOUR_AKS_CLUSTER --overwrite-existing
+
+# Then get the external IP (LoadBalancer is internet-accessible by default)
 kubectl get svc bemind-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
+
+**Note:** The Azure Load Balancer created by the LoadBalancer service is configured to accept traffic from anywhere on the internet (0.0.0.0/0). No additional firewall rules or network security groups are required for basic internet access.
 
 ### Health Endpoints
 
