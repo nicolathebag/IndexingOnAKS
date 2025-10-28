@@ -1,6 +1,6 @@
 # filepath: Dockerfile.api
 # ================================================================
-# BeMind API - Production Dockerfile
+# API - Production Dockerfile
 # Multi-stage build for optimized Flask application
 # ================================================================
 
@@ -26,9 +26,9 @@ RUN python -m venv /opt/venv && \
 # Stage 2: Runtime image
 FROM python:3.11-slim
 
-LABEL maintainer="BeMind Team"
+LABEL maintainer="Development Team"
 LABEL version="1.0"
-LABEL description="BeMind Flask API for managing indexing jobs on AKS"
+LABEL description="Flask API for managing indexing jobs on AKS"
 
 WORKDIR /app
 

@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: bemind-config
-  namespace: bemindindexer
+  name: indexer-config
+  namespace: indexer
   labels:
-    app: bemind
+    app: indexer
     component: config
 data:
   LOG_LEVEL: "INFO"
@@ -22,7 +22,7 @@ data:
   log_level: "INFO"
   
   # Service URLs
-  gotenberg_url: "http://gotenberg-service.bemindindexer.svc.cluster.local:3000"
+  gotenberg_url: "http://gotenberg-service.indexer.svc.cluster.local:3000"
   
   # Azure API Versions
   azure_openai_api_version: "2024-02-01"

@@ -1,19 +1,19 @@
 #!/bin/bash
 # ================================================================
-# BeMind Azure Environment Configuration
+# Azure Environment Configuration
 # ================================================================
 
 # Azure Core Settings
 export SUBSCRIPTION_ID="$(az account show --query id -o tsv 2>/dev/null || echo '')"
-export RESOURCE_GROUP="DEV-BeMind"
+export RESOURCE_GROUP="DEV-IndexingOnAKS"
 export LOCATION="swedencentral"
 
 # AKS Configuration
-export AKS_CLUSTER_NAME="bemind_aks"
-export NAMESPACE="bemind"
+export AKS_CLUSTER_NAME="indexing_aks"
+export NAMESPACE="indexer"
 
 # ACR Configuration
-export ACR_NAME="devbemindcontainerregistryse"
+export ACR_NAME="devindexercontainerregistry"
 export ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
 
 # Azure Storage

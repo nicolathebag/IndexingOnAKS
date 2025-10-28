@@ -1,6 +1,6 @@
-# BeMind Kubernetes Deployment
+# Kubernetes Deployment for Indexing on AKS
 
-A production-ready Kubernetes deployment for the BeMind indexing and API system on Azure Kubernetes Service (AKS).
+A production-ready Kubernetes deployment for the Indexing indexing and API system on Azure Kubernetes Service (AKS).
 
 ## 📋 Table of Contents
 
@@ -16,7 +16,7 @@ A production-ready Kubernetes deployment for the BeMind indexing and API system 
 
 ## 🎯 Overview
 
-BeMind is a cloud-native application that provides:
+This is a cloud-native application that provides:
 - **RESTful API** for managing document indexing jobs
 - **Kubernetes Job Management** with parallelism and retry logic
 - **Azure Integration** with Storage, Cognitive Search, and OpenAI
@@ -44,7 +44,7 @@ BeMind is a cloud-native application that provides:
 │  │            Azure Kubernetes Service             │    │
 │  │                                                 │    │
 │  │  ┌──────────────┐      ┌──────────────┐       │    │
-│  │  │   BeMind API │◄────►│  Kubernetes  │       │    │
+│  │  │   Indexing API │◄────►│  Kubernetes  │       │    │
 │  │  │  (Deployment)│      │    Jobs      │       │    │
 │  │  └──────┬───────┘      └──────────────┘       │    │
 │  │         │                                       │    │
@@ -87,9 +87,9 @@ This diagram shows the complete request flow from external clients through the A
                                 ▼
 ┌───────────────────────────────────────────────────────────────────────────┐
 │                   KUBERNETES SERVICE (LoadBalancer)                       │
-│  • Name: bemind-api-service                                               │
+│  • Name: indexer-api-service                                               │
 │  • Type: LoadBalancer                                                     │
-│  • Selector: app=bemind-api, component=api                                │
+│  • Selector: app=indexer-api, component=api                                │
 │  • Port: 80 → TargetPort: 5002                                            │
 └───────────────────────────────┬───────────────────────────────────────────┘
                                 │
@@ -156,7 +156,7 @@ This diagram shows the complete request flow from external clients through the A
 │                                                                           │
 │  1. HEALTH CHECK REQUEST                                                  │
 │     Client → LB → Service → Pod → /health                                │
-│     Returns: {"status": "healthy", "service": "bemind-api"}              │
+│     Returns: {"status": "healthy", "service": "indexing-api"}              │
 │                                                                           │
 │  2. CREATE JOB REQUEST                                                    │
 │     Client → LB → Service → Pod → POST /api/jobs                         │
@@ -240,11 +240,11 @@ cd k8s-indexer-deployment
 
 ```bash
 # Copy and edit environment configuration
-cp scripts/bemind-env.sh ~/bemind-env.sh
-nano ~/bemind-env.sh  # Edit with your Azure resource names
+cp scripts/env.sh ~/env.sh
+nano ~/env.sh  # Edit with your Azure resource names
 
 # Source the environment
-source ~/bemind-env.sh
+source ~/env.sh
 ```
 
 ### 3. Setup Credentials
@@ -257,10 +257,10 @@ bash scripts/create-secrets-existing.sh
 **Option B: From credentials file**
 ```bash
 # Copy template
-cp .bemind-credentials.env.template ~/.bemind-credentials.env
+cp .credentials.env.template ~/.credentials.env
 
 # Edit with your credentials
-nano ~/.bemind-credentials.env
+nano ~/.credentials.env
 
 # Deploy with credentials
 bash scripts/create-secrets-from-env.sh
@@ -280,33 +280,33 @@ bash scripts/deploy-api.sh
 
 ```bash
 # Check pod status
-kubectl get pods -n bemindindexer -l app=bemind-api
+kubectl get pods -n indexer -l app=indexer-api
 
 # Check service
-kubectl get svc bemind-api-service -n bemindindexer
+kubectl get svc indexer-api-service -n indexer
 
 # View logs
-kubectl logs -l app=bemind-api -n bemindindexer --tail=50
+kubectl logs -l app=indexer-api -n indexer --tail=50
 ```
 
 ## 📚 Deployment Guide
 
 ### Environment Configuration
 
-Edit [`~/bemind-env.sh`](scripts/bemind-env.sh):
+Edit [`~/env.sh`](scripts/env.sh):
 
 ```bash
 # Azure Core Settings
 export SUBSCRIPTION_ID="your-subscription-id"
-export RESOURCE_GROUP="DEV-BeMind"
+export RESOURCE_GROUP="DEV-IndexingOnAKS"
 export LOCATION="swedencentral"
 
 # AKS Configuration
-export AKS_CLUSTER_NAME="bemind_aks"
+export AKS_CLUSTER_NAME="indexing_aks"
 export NAMESPACE="default"
 
 # ACR Configuration
-export ACR_NAME="devbemindcontainerregistryse"
+export ACR_NAME="devindexercontainerregistry"
 export ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
 
 # Azure Services
@@ -317,7 +317,7 @@ export OPENAI_RESOURCE_NAME="be-tt-ava-openaieu"
 
 ### Credentials Setup
 
-Required credentials in [`~/.bemind-credentials.env`](.bemind-credentials.env.template):
+Required credentials in [`~/.credentials.env`](.credentials.env.template):
 
 ```bash
 # Azure OpenAI
@@ -353,9 +353,9 @@ The build system automatically handles versioning:
 bash scripts/build-and-push.sh v1.0.1
 
 # Images created:
-# - bemind-api:v1.0.1
-# - bemind-api:v1.0.1-<timestamp>
-# - bemind-api:latest
+# - indexer:v1.0.1
+# - indexer:v1.0.1-<timestamp>
+# - indexer:latest
 ```
 
 ## 🔌 API Reference
@@ -371,7 +371,7 @@ Get external IP:
 az aks get-credentials --resource-group YOUR_RESOURCE_GROUP --name YOUR_AKS_CLUSTER --overwrite-existing
 
 # Then get the external IP (LoadBalancer is internet-accessible by default)
-kubectl get svc bemind-api-service -n bemindindexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+kubectl get svc indexer-api-service -n indexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 
 **Note:** The Azure Load Balancer created by the LoadBalancer service is configured to accept traffic from anywhere on the internet (0.0.0.0/0). No additional firewall rules or network security groups are required for basic internet access.
@@ -387,7 +387,7 @@ GET /health
 ```json
 {
   "status": "healthy",
-  "service": "bemind-api"
+  "service": "indexing-api"
 }
 ```
 
@@ -583,7 +583,7 @@ See the [Testing Guide](#complete-test-example) below for detailed test scenario
 
 #### Test Health Endpoint
 ```bash
-EXTERNAL_IP=$(kubectl get svc bemind-api-service -n bemindindexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+EXTERNAL_IP=$(kubectl get svc indexer-api-service -n indexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 curl http://${EXTERNAL_IP}:5002/health
 ```
 
@@ -600,7 +600,7 @@ curl -X POST http://${EXTERNAL_IP}:5002/api/jobs \
 
 #### Port Forward for Local Testing
 ```bash
-kubectl port-forward svc/bemind-api-service 8080:5002 -n bemindindexer
+kubectl port-forward svc/indexer-api-service 8080:5002 -n indexer
 
 # Test locally
 curl http://localhost:8080/health
@@ -624,7 +624,7 @@ See [`scripts/test-suite.sh`](scripts/test-suite.sh) for a comprehensive test th
 **Example output:**
 ```
 ========================================
-BeMind Complete Test Suite
+Indexing Complete Test Suite
 ========================================
 
 Test 1: Deployment Health...
@@ -650,13 +650,13 @@ All Tests Passed! ✓
 
 ```bash
 # All API pods
-kubectl logs -l app=bemind-api -n bemindindexer --tail=100 --follow
+kubectl logs -l app=indexer-api -n indexer --tail=100 --follow
 
 # Specific pod
-kubectl logs <pod-name> -n bemindindexer
+kubectl logs <pod-name> -n indexer
 
 # Previous pod instance (if crashed)
-kubectl logs <pod-name> -n bemindindexer --previous
+kubectl logs <pod-name> -n indexer --previous
 ```
 
 ### Check Resource Usage
@@ -666,27 +666,27 @@ kubectl logs <pod-name> -n bemindindexer --previous
 kubectl top nodes
 
 # Pod resources
-kubectl top pods -n bemindindexer -l app=bemind-api
+kubectl top pods -n indexer -l app=indexer-api
 
 # HPA status
-kubectl get hpa -n bemindindexer --watch
+kubectl get hpa -n indexer --watch
 ```
 
 ### Debugging
 
 ```bash
 # Describe pod for events
-kubectl describe pod <pod-name> -n bemindindexer
+kubectl describe pod <pod-name> -n indexer
 
 # Describe deployment
-kubectl describe deployment bemind-api -n bemindindexer
+kubectl describe deployment indexer-api -n indexer
 
 # Check secrets
-kubectl get secrets -n bemindindexer
-kubectl describe secret bemind-secrets -n bemindindexer
+kubectl get secrets -n indexer
+kubectl describe secret indexer-secrets -n indexer
 
 # Execute into pod
-kubectl exec -it <pod-name> -n bemindindexer -- /bin/bash
+kubectl exec -it <pod-name> -n indexer -- /bin/bash
 ```
 
 ### Common Issues
@@ -694,34 +694,34 @@ kubectl exec -it <pod-name> -n bemindindexer -- /bin/bash
 #### Pods not starting
 ```bash
 # Check events
-kubectl get events -n bemindindexer --sort-by='.lastTimestamp'
+kubectl get events -n indexer --sort-by='.lastTimestamp'
 
 # Check image pull
-kubectl describe pod <pod-name> -n bemindindexer | grep -A 10 "Events:"
+kubectl describe pod <pod-name> -n indexer | grep -A 10 "Events:"
 ```
 
 #### Service not accessible
 ```bash
 # Check service endpoints
-kubectl get endpoints bemind-api-service -n bemindindexer
+kubectl get endpoints indexer-api-service -n indexer
 
 # Check load balancer
-kubectl get svc bemind-api-service -n bemindindexer
+kubectl get svc indexer-api-service -n indexer
 
 # Check network policies
-kubectl get networkpolicies -n bemindindexer
+kubectl get networkpolicies -n indexer
 ```
 
 #### Job failures
 ```bash
 # List jobs
-kubectl get jobs -n bemindindexer
+kubectl get jobs -n indexer
 
 # Check job status
-kubectl describe job <job-name> -n bemindindexer
+kubectl describe job <job-name> -n indexer
 
 # View pod logs
-kubectl logs -l job-name=<job-name> -n bemindindexer
+kubectl logs -l job-name=<job-name> -n indexer
 ```
 
 ## 🗑️ Cleanup
@@ -758,11 +758,11 @@ This removes all tracked resources including:
 
 ```bash
 # Delete specific resources
-kubectl delete deployment bemind-api -n bemindindexer
-kubectl delete service bemind-api-service -n bemindindexer
-kubectl delete hpa bemind-api-hpa -n bemindindexer
-kubectl delete configmap bemind-config -n bemindindexer
-kubectl delete secret bemind-secrets -n bemindindexer
+kubectl delete deployment indexer-api -n indexer
+kubectl delete service indexer-api-service -n indexer
+kubectl delete hpa indexer-api-hpa -n indexer
+kubectl delete configmap indexer-config -n indexer
+kubectl delete secret indexer-secrets -n indexer
 
 # Delete namespace (removes everything)
 kubectl delete namespace default  # Be careful with default namespace!
@@ -777,7 +777,7 @@ k8s-indexer-deployment/
 ├── .dockerignore                      # Docker build exclusions
 ├── Dockerfile.api                     # API container image
 ├── Dockerfile.indexer                 # Indexer container image
-├── .bemind-credentials.env.template   # Credentials template
+├── .credentials.env.template   # Credentials template
 │
 ├── src/
 │   ├── api/                          # Flask API application
@@ -815,7 +815,7 @@ k8s-indexer-deployment/
 │   └── indexer-cronjob.yaml
 │
 └── scripts/                          # Deployment scripts
-    ├── bemind-env.sh                 # Environment configuration
+    ├── env.sh                 # Environment configuration
     ├── deploy-with-existing-services.sh  # Full deployment
     ├── deploy-api.sh                 # API-only deployment
     ├── deploy-production.sh          # Production deployment
@@ -906,9 +906,9 @@ Optimize job performance:
 ### Getting Help
 
 1. Check the [Troubleshooting](#monitoring--troubleshooting) section
-2. Review logs: `kubectl logs -l app=bemind-api -n bemindindexer --tail=100`
+2. Review logs: `kubectl logs -l app=indexer-api -n indexer --tail=100`
 3. Check Azure Portal for service health
-4. Review Kubernetes events: `kubectl get events -n bemindindexer --sort-by='.lastTimestamp'`
+4. Review Kubernetes events: `kubectl get events -n indexer --sort-by='.lastTimestamp'`
 
 ### Contributing
 
@@ -933,4 +933,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Version:** 1.0.0  
 **Last Updated:** 2024-01-15  
-**Maintained by:** BeMind Team
+**Maintained by:** Indexing Team

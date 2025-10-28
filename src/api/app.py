@@ -18,7 +18,7 @@ app.register_blueprint(jobs.bp)  # Add jobs blueprint
 
 @app.route("/")
 def read_root():
-    return {"message": "Welcome to BeMind API!", "version": "1.0.0"}
+    return {"message": "Welcome to Indexing API!", "version": "1.0.0"}
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5002, debug=False)

@@ -94,7 +94,7 @@ def create_job():
             }), 400
         
         # Container configuration
-        image = data.get('image', 'devbemindcontainerregistryse.azurecr.io/bemind-indexer:latest')
+        image = data.get('image', 'devindexercontainerregistry.azurecr.io/indexer:latest')
         job_env = data.get('env', {})
         
         # Resource limits with Azure best practices
@@ -140,7 +140,7 @@ def create_job():
                     name=env_name,
                     value_from=client.V1EnvVarSource(
                         secret_key_ref=client.V1SecretKeySelector(
-                            name='bemind-secrets',
+                            name='indexer-secrets',
                             key=env_name,
                             optional=False
                         )
@@ -160,14 +160,14 @@ def create_job():
                 name=job_name,
                 namespace=namespace,
                 labels={
-                    'app': 'bemind-indexer',
+                    'app': 'indexer',
                     'component': 'job',
-                    'managed-by': 'bemind-api',
+                    'managed-by': 'indexing-api',
                     'job-type': data.get('job_type', 'indexing'),
                     'azure.workload.identity/use': 'true'  # Azure best practice: workload identity
                 },
                 annotations={
-                    'created-by': 'bemind-api',
+                    'created-by': 'indexing-api',
                     'created-at': datetime.utcnow().isoformat(),
                     'replaced-existing': str(job_exists)
                 }
@@ -181,7 +181,7 @@ def create_job():
                 template=client.V1PodTemplateSpec(
                     metadata=client.V1ObjectMeta(
                         labels={
-                            'app': 'bemind-indexer',
+                            'app': 'indexer',
                             'component': 'job-pod',
                             'job-name': job_name,
                             'azure.workload.identity/use': 'true'
@@ -194,7 +194,7 @@ def create_job():
                     ),
                     spec=client.V1PodSpec(
                         restart_policy="OnFailure",
-                        service_account_name="bemind-indexer-sa",
+                        service_account_name="indexer-sa",
                         # Azure best practice: use node selector for specialized workloads
                         node_selector=data.get('node_selector', {}),
                         containers=[
@@ -391,7 +391,7 @@ def list_jobs():
         job_type = request.args.get('job_type')
         
         # Build label selector
-        label_selector = 'app=bemind-indexer'
+        label_selector = 'app=indexer'
         if job_type:
             label_selector += f',job-type={job_type}'
         

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ================================================================
-# BeMind API Deployment Script (No Docker Required)
+# Indexing API Deployment Script (No Docker Required)
 # Deploys directly to AKS - assumes ACR integration is configured
 # ================================================================
 
@@ -8,10 +8,10 @@ set -e  # Exit on error
 
 # Source environment variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/bemind-env.sh"
+source "${SCRIPT_DIR}/env.sh"
 
 # Source credentials from home directory
-CREDENTIALS_FILE="$HOME/.bemind-credentials.env"
+CREDENTIALS_FILE="$HOME/.credentials.env"
 if [[ -f "$CREDENTIALS_FILE" ]]; then
     echo "Loading credentials from $CREDENTIALS_FILE"
     source "$CREDENTIALS_FILE"
@@ -27,7 +27,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}BeMind API Deployment to AKS${NC}"
+echo -e "${GREEN}Indexing API Deployment to AKS${NC}"
 echo -e "${GREEN}========================================${NC}"
 
 # Validate required environment variables
@@ -72,11 +72,11 @@ fi
 echo -e "${YELLOW}Step 4: Verifying image exists in ACR...${NC}"
 IMAGE_EXISTS=$(az acr repository show \
     --name "$ACR_NAME" \
-    --image "bemind-api:${CURRENT_VERSION}" \
+    --image "indexer-api:${CURRENT_VERSION}" \
     --query "name" -o tsv 2>/dev/null || echo "")
 
 if [[ -z "$IMAGE_EXISTS" ]]; then
-    echo -e "${YELLOW}Warning: Image bemind-api:${CURRENT_VERSION} not found in ACR${NC}"
+    echo -e "${YELLOW}Warning: Image indexer-api:${CURRENT_VERSION} not found in ACR${NC}"
     echo -e "${YELLOW}Available images:${NC}"
     az acr repository list --name "$ACR_NAME" -o table || echo "Could not list images"
     echo -e "${YELLOW}Please build and push the image first${NC}"
@@ -86,7 +86,7 @@ if [[ -z "$IMAGE_EXISTS" ]]; then
         exit 1
     fi
 else
-    echo -e "${GREEN}✓ Image found: bemind-api:${CURRENT_VERSION}${NC}"
+    echo -e "${GREEN}✓ Image found: indexer-api:${CURRENT_VERSION}${NC}"
 fi
 
 # Step 5: Create secrets from credentials file
@@ -101,19 +101,19 @@ JWT_SECRET="${JWT_SECRET:-default-jwt-secret-change-in-production}"
 # Warn if using placeholder values
 if [[ "$AZURE_OPENAI_KEY" == "placeholder-openai-key" ]]; then
     echo -e "${YELLOW}Warning: Using placeholder for AZURE_OPENAI_KEY${NC}"
-    echo -e "${YELLOW}Please set credentials in ~/.bemind-credentials.env${NC}"
+    echo -e "${YELLOW}Please set credentials in ~/.credentials.env${NC}"
 fi
 
 # Check if secrets already exist (with timeout)
-if timeout 10 kubectl get secret bemind-secrets -n bemindindexer > /dev/null 2>&1; then
-    echo -e "${YELLOW}Secret 'bemind-secrets' already exists. Deleting and recreating...${NC}"
-    kubectl delete secret bemind-secrets -n bemindindexer --timeout=10s || echo "Failed to delete existing secret"
+if timeout 10 kubectl get secret indexer-secrets -n indexer > /dev/null 2>&1; then
+    echo -e "${YELLOW}Secret 'indexer-secrets' already exists. Deleting and recreating...${NC}"
+    kubectl delete secret indexer-secrets -n indexer --timeout=10s || echo "Failed to delete existing secret"
 fi
 
 # Create secret with actual values from credentials file
-echo -e "${YELLOW}Creating secret 'bemind-secrets'...${NC}"
-kubectl create secret generic bemind-secrets \
-    -n bemindindexer \
+echo -e "${YELLOW}Creating secret 'indexer-secrets'...${NC}"
+kubectl create secret generic indexer-secrets \
+    -n indexer \
     --from-literal=AZURE_OPENAI_ENDPOINT="${OPENAI_ENDPOINT}" \
     --from-literal=AZURE_OPENAI_API_KEY="${AZURE_OPENAI_KEY}" \
     --from-literal=AZURE_OPENAI_API_VERSION="${OPENAI_API_VERSION}" \
@@ -128,7 +128,7 @@ kubectl create secret generic bemind-secrets \
     --from-literal=JWT_SECRET="${JWT_SECRET}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
-echo -e "${GREEN}✓ Secret 'bemind-secrets' created successfully${NC}"
+echo -e "${GREEN}✓ Secret 'indexer-secrets' created successfully${NC}"
 
 # Step 6: Apply ConfigMap
 echo -e "${YELLOW}Step 6: Applying ConfigMap...${NC}"
@@ -145,27 +145,27 @@ kubectl apply -f "${SCRIPT_DIR}/../k8s/api-deployment.yaml"
 
 # Step 9: Wait for rollout
 echo -e "${YELLOW}Step 9: Waiting for deployment to complete...${NC}"
-if ! kubectl rollout status deployment/bemind-api -n bemindindexer --timeout=5m; then
+if ! kubectl rollout status deployment/indexer-api -n indexer --timeout=5m; then
     echo -e "${YELLOW}Warning: Deployment rollout did not complete in time${NC}"
-    echo -e "${YELLOW}Check status with: kubectl get pods -n bemindindexer -l app=bemind-api${NC}"
+    echo -e "${YELLOW}Check status with: kubectl get pods -n indexer -l app=indexer-api${NC}"
 fi
 
 # Step 10: Check deployment status
 echo -e "${YELLOW}Step 10: Checking deployment status...${NC}"
 echo -e "${GREEN}Pods:${NC}"
-kubectl get pods -n bemindindexer -l app=bemind-api || echo "Could not get pods"
+kubectl get pods -n indexer -l app=indexer-api || echo "Could not get pods"
 
 echo -e "${GREEN}Service:${NC}"
-kubectl get svc -n bemindindexer -l app=bemind-api || echo "Could not get service"
+kubectl get svc -n indexer -l app=indexer-api || echo "Could not get service"
 
 echo -e "${GREEN}HPA:${NC}"
-kubectl get hpa -n bemindindexer || echo "Could not get HPA"
+kubectl get hpa -n indexer || echo "Could not get HPA"
 
 # Step 11: Get pod logs (last 10 lines)
 echo -e "${YELLOW}Step 11: Recent pod logs:${NC}"
-POD_NAME=$(kubectl get pods -n bemindindexer -l app=bemind-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+POD_NAME=$(kubectl get pods -n indexer -l app=indexer-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
 if [[ -n "$POD_NAME" ]]; then
-    kubectl logs "$POD_NAME" -n bemindindexer --tail=10 2>/dev/null || echo "No logs available yet"
+    kubectl logs "$POD_NAME" -n indexer --tail=10 2>/dev/null || echo "No logs available yet"
 else
     echo "No pods found yet"
 fi
@@ -175,28 +175,28 @@ echo -e "${GREEN}Deployment completed!${NC}"
 echo -e "${GREEN}========================================${NC}"
 
 # Save deployed resources to tracking file
-TRACKING_FILE="${SCRIPT_DIR}/.bemind-resources.txt"
-echo "# BeMind Deployed Resources - $(date)" > "$TRACKING_FILE"
+TRACKING_FILE="${SCRIPT_DIR}/.resources.txt"
+echo "# Indexing Deployed Resources - $(date)" > "$TRACKING_FILE"
 echo "namespace=default" >> "$TRACKING_FILE"
-echo "deployment=bemind-api" >> "$TRACKING_FILE"
-echo "service=bemind-api-service" >> "$TRACKING_FILE"
-echo "hpa=bemind-api-hpa" >> "$TRACKING_FILE"
-echo "configmap=bemind-app-config" >> "$TRACKING_FILE"
-echo "secret=bemind-secrets" >> "$TRACKING_FILE"
-echo "serviceaccount=bemind-indexer-sa,bemind-worker" >> "$TRACKING_FILE"
-echo "role=bemind-indexer-role" >> "$TRACKING_FILE"
-echo "rolebinding=bemind-indexer-rolebinding" >> "$TRACKING_FILE"
+echo "deployment=indexer-api" >> "$TRACKING_FILE"
+echo "service=indexer-api-service" >> "$TRACKING_FILE"
+echo "hpa=indexer-api-hpa" >> "$TRACKING_FILE"
+echo "configmap=indexer-app-config" >> "$TRACKING_FILE"
+echo "secret=indexer-secrets" >> "$TRACKING_FILE"
+echo "serviceaccount=indexer-sa,indexer-worker" >> "$TRACKING_FILE"
+echo "role=indexer-role" >> "$TRACKING_FILE"
+echo "rolebinding=indexer-rolebinding" >> "$TRACKING_FILE"
 
 echo -e "${GREEN}✓ Resource tracking saved to: $TRACKING_FILE${NC}"
 echo ""
 
 # Get service endpoint
-SERVICE_IP=$(kubectl get svc bemind-api-service -n bemindindexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "Pending...")
+SERVICE_IP=$(kubectl get svc indexer-api-service -n indexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "Pending...")
 if [[ "$SERVICE_IP" != "Pending..." ]]; then
     echo -e "${GREEN}API Service Endpoint: http://${SERVICE_IP}:5002${NC}"
 else
     echo -e "${YELLOW}Service IP is still pending. Run this to check later:${NC}"
-    echo -e "${YELLOW}kubectl get svc bemind-api-service -n bemindindexer${NC}"
+    echo -e "${YELLOW}kubectl get svc indexer-api-service -n indexer${NC}"
 fi
 
 echo ""

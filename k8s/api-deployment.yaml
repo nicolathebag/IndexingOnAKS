@@ -1,15 +1,15 @@
 # ================================================================
-# BeMind API Deployment with High Availability
+# Indexing API Deployment with High Availability
 # Flask application with Gunicorn WSGI server
 # ================================================================
 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: bemind-api
-  namespace: bemindindexer
+  name: indexer-api
+  namespace: indexer
   labels:
-    app: bemind-api
+    app: indexer-api
     component: api
     version: v1.0.0
 spec:
@@ -21,12 +21,12 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: bemind-api
+      app: indexer-api
       component: api
   template:
     metadata:
       labels:
-        app: bemind-api
+        app: indexer-api
         component: api
         version: v1.0.0
       annotations:
@@ -44,7 +44,7 @@ spec:
                     - key: app
                       operator: In
                       values:
-                        - bemind-api
+                        - indexer-api
                 topologyKey: kubernetes.io/hostname
             - weight: 50
               podAffinityTerm:
@@ -56,11 +56,11 @@ spec:
                         - api
                 topologyKey: topology.kubernetes.io/zone
       
-      serviceAccountName: bemind-indexer-sa
+      serviceAccountName: indexer-sa
       
       containers:
         - name: api
-          image: devbemindcontainerregistryse.azurecr.io/bemind-api:v1.0.2
+          image: devindexercontainerregistry.azurecr.io/indexer-api:v1.0.2
           imagePullPolicy: Always
           
           # Use gunicorn for Flask (WSGI)
@@ -99,81 +99,81 @@ spec:
             - name: AZURE_OPENAI_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_OPENAI_ENDPOINT
             - name: AZURE_OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_OPENAI_API_KEY
             - name: AZURE_OPENAI_API_VERSION
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_OPENAI_API_VERSION
             - name: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
             - name: AZURE_OPENAI_GPT4_DEPLOYMENT
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_OPENAI_GPT4_DEPLOYMENT
             
             # Azure Search from Secret
             - name: AZURE_SEARCH_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_SEARCH_ENDPOINT
             - name: AZURE_SEARCH_KEY
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_SEARCH_KEY
             - name: AZURE_SEARCH_API_VERSION
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_SEARCH_API_VERSION
             
             # Azure Storage from Secret
             - name: AZURE_STORAGE_ACCOUNT_NAME
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_STORAGE_ACCOUNT_NAME
             - name: AZURE_STORAGE_CONNECTION_STRING
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_STORAGE_CONNECTION_STRING
             - name: AZURE_STORAGE_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: AZURE_STORAGE_ENDPOINT
             
             # JWT Secret
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: bemind-secrets
+                  name: indexer-secrets
                   key: JWT_SECRET
             
             # ConfigMap values
             - name: LOG_LEVEL
               valueFrom:
                 configMapKeyRef:
-                  name: bemind-config
+                  name: indexer-config
                   key: LOG_LEVEL
                   optional: true
             - name: MAX_WORKERS
               valueFrom:
                 configMapKeyRef:
-                  name: bemind-config
+                  name: indexer-config
                   key: MAX_WORKERS
                   optional: true
           
@@ -213,15 +213,15 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: bemind-api-service
-  namespace: bemindindexer
+  name: indexer-api-service
+  namespace: indexer
   labels:
-    app: bemind-api
+    app: indexer-api
     component: api
 spec:
   type: ClusterIP
   selector:
-    app: bemind-api
+    app: indexer-api
     component: api
   ports:
     - name: http
@@ -234,13 +234,13 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: bemind-api-hpa
-  namespace: bemindindexer
+  name: indexer-api-hpa
+  namespace: indexer
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: bemind-api
+    name: indexer-api
   minReplicas: 2
   maxReplicas: 10
   metrics:

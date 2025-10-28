@@ -11,17 +11,17 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Source environment
-if [ -f "$HOME/bemind-env.sh" ]; then
-    source "$HOME/bemind-env.sh"
-elif [ -f "$SCRIPT_DIR/bemind-env.sh" ]; then
-    source "$SCRIPT_DIR/bemind-env.sh"
+if [ -f "$HOME/env.sh" ]; then
+    source "$HOME/env.sh"
+elif [ -f "$SCRIPT_DIR/env.sh" ]; then
+    source "$SCRIPT_DIR/env.sh"
 else
-    echo "Error: bemind-env.sh not found"
+    echo "Error: env.sh not found"
     exit 1
 fi
 
 echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║   BeMind Deployment with Existing Azure Services              ║"
+echo "║   Indexing Deployment with Existing Azure Services              ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 
 cd "$PROJECT_ROOT"
@@ -30,17 +30,17 @@ VERSION="${1:-v1.0.0}"
 SECRET_MODE="${2:-auto}"
 
 # Initialize resource tracking file
-TRACKING_FILE="$SCRIPT_DIR/.bemind-deployed-resources.txt"
-echo "# BeMind Deployed Resources - $(date)" > "$TRACKING_FILE"
+TRACKING_FILE="$SCRIPT_DIR/.deployed-resources.txt"
+echo "# Indexing Deployed Resources - $(date)" > "$TRACKING_FILE"
 echo "# Deployment Version: $VERSION" >> "$TRACKING_FILE"
 echo "# Secret Mode: $SECRET_MODE" >> "$TRACKING_FILE"
 echo "" >> "$TRACKING_FILE"
 
 # Auto-detect secret creation method
 if [ "$SECRET_MODE" = "auto" ]; then
-    if [ -f "$HOME/.bemind-credentials.env" ]; then
+    if [ -f "$HOME/.credentials.env" ]; then
         SECRET_MODE="--from-file"
-        echo "ℹ  Using credentials from ~/.bemind-credentials.env"
+        echo "ℹ  Using credentials from ~/.credentials.env"
     else
         SECRET_MODE="--interactive"
         echo "ℹ  Using interactive credential input"
@@ -62,8 +62,8 @@ echo "acr_resource_group=$RESOURCE_GROUP" >> "$TRACKING_FILE"
 echo "" >> "$TRACKING_FILE"
 
 # Reload environment
-if [ -f "$HOME/bemind-env.sh" ]; then
-    source "$HOME/bemind-env.sh"
+if [ -f "$HOME/env.sh" ]; then
+    source "$HOME/env.sh"
 fi
 
 # Step 2: Build and push images (skips if exist)
@@ -73,8 +73,8 @@ bash "$SCRIPT_DIR/build-and-push.sh" "$VERSION"
 
 # Track images
 echo "# Container Images" >> "$TRACKING_FILE"
-echo "image=${ACR_LOGIN_SERVER}/bemind-api:${VERSION}" >> "$TRACKING_FILE"
-echo "image=${ACR_LOGIN_SERVER}/bemind-api:latest" >> "$TRACKING_FILE"
+echo "image=${ACR_LOGIN_SERVER}/indexer-api:${VERSION}" >> "$TRACKING_FILE"
+echo "image=${ACR_LOGIN_SERVER}/indexer-api:latest" >> "$TRACKING_FILE"
 echo "" >> "$TRACKING_FILE"
 
 # Step 3: Connect to AKS
@@ -122,7 +122,7 @@ esac
 echo "# Kubernetes Secrets" >> "$TRACKING_FILE"
 SECRETS=$(kubectl get secrets -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
 for secret in $SECRETS; do
-    if [[ "$secret" == *"bemind"* ]]; then
+    if [[ "$secret" == *"indexer"* ]]; then
         echo "secret=$secret" >> "$TRACKING_FILE"
     fi
 done
@@ -137,14 +137,14 @@ kubectl apply -f "$PROJECT_ROOT/k8s/api-deployment.yaml"
 
 # Track Kubernetes resources
 echo "# Kubernetes Resources" >> "$TRACKING_FILE"
-echo "deployment=bemind-api" >> "$TRACKING_FILE"
-echo "service=bemind-api-service" >> "$TRACKING_FILE"
-echo "hpa=bemind-api-hpa" >> "$TRACKING_FILE"
+echo "deployment=indexer-api" >> "$TRACKING_FILE"
+echo "service=indexer-api-service" >> "$TRACKING_FILE"
+echo "hpa=indexer-api-hpa" >> "$TRACKING_FILE"
 
 # Track ConfigMap
 CONFIGMAPS=$(kubectl get configmaps -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
 for cm in $CONFIGMAPS; do
-    if [[ "$cm" == *"bemind"* ]]; then
+    if [[ "$cm" == *"indexer"* ]]; then
         echo "configmap=$cm" >> "$TRACKING_FILE"
     fi
 done
@@ -152,7 +152,7 @@ done
 # Track ServiceAccounts
 SAS=$(kubectl get serviceaccounts -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
 for sa in $SAS; do
-    if [[ "$sa" == *"bemind"* ]]; then
+    if [[ "$sa" == *"indexer"* ]]; then
         echo "serviceaccount=$sa" >> "$TRACKING_FILE"
     fi
 done
@@ -160,7 +160,7 @@ done
 # Track Roles
 ROLES=$(kubectl get roles -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
 for role in $ROLES; do
-    if [[ "$role" == *"bemind"* ]]; then
+    if [[ "$role" == *"indexer"* ]]; then
         echo "role=$role" >> "$TRACKING_FILE"
     fi
 done
@@ -168,14 +168,14 @@ done
 # Track RoleBindings
 ROLEBINDINGS=$(kubectl get rolebindings -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
 for rb in $ROLEBINDINGS; do
-    if [[ "$rb" == *"bemind"* ]]; then
+    if [[ "$rb" == *"indexer"* ]]; then
         echo "rolebinding=$rb" >> "$TRACKING_FILE"
     fi
 done
 
 echo "" >> "$TRACKING_FILE"
 
-kubectl rollout status deployment/bemind-api -n "$NAMESPACE" --timeout=300s
+kubectl rollout status deployment/indexer-api -n "$NAMESPACE" --timeout=300s
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
@@ -187,7 +187,7 @@ echo ""
 echo "✓ Resource tracking saved to: $TRACKING_FILE"
 echo ""
 echo "Next steps:"
-echo "  kubectl port-forward svc/bemind-api-service 8080:5002 -n $NAMESPACE"
+echo "  kubectl port-forward svc/indexer-api-service 8080:5002 -n $NAMESPACE"
 echo "  curl http://localhost:8080/health"
 echo ""
 echo "To clean up all resources, run:"

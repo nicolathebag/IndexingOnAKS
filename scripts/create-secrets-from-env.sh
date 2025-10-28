@@ -6,12 +6,12 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Source environment
-if [ -f "$HOME/bemind-env.sh" ]; then
-    source "$HOME/bemind-env.sh"
-elif [ -f "$SCRIPT_DIR/bemind-env.sh" ]; then
-    source "$SCRIPT_DIR/bemind-env.sh"
+if [ -f "$HOME/env.sh" ]; then
+    source "$HOME/env.sh"
+elif [ -f "$SCRIPT_DIR/env.sh" ]; then
+    source "$SCRIPT_DIR/env.sh"
 else
-    echo "Error: bemind-env.sh not found"
+    echo "Error: env.sh not found"
     exit 1
 fi
 
@@ -19,7 +19,7 @@ fi
 # Load credentials from .env file
 # ================================================================
 
-ENV_FILE="$HOME/.bemind-credentials.env"
+ENV_FILE="$HOME/.credentials.env"
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "Creating credentials file: $ENV_FILE"

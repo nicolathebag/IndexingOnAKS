@@ -1,6 +1,6 @@
 #!/bin/bash
 # ================================================================
-# BeMind Deployment Cleanup Script
+# Indexing Deployment Cleanup Script
 # Removes all resources tracked during deployment
 # ================================================================
 
@@ -8,7 +8,7 @@ set -e
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-TRACKING_FILE="$SCRIPT_DIR/.bemind-deployed-resources.txt"
+TRACKING_FILE="$SCRIPT_DIR/.deployed-resources.txt"
 
 # Colors for output
 RED='\033[0;31m'
@@ -17,7 +17,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${YELLOW}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${YELLOW}║   BeMind Deployment Cleanup                                    ║${NC}"
+echo -e "${YELLOW}║   Indexing Deployment Cleanup                                    ║${NC}"
 echo -e "${YELLOW}╚════════════════════════════════════════════════════════════════╝${NC}"
 
 # Check if tracking file exists
