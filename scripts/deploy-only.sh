@@ -3,8 +3,8 @@
 set -e
 
 # ================================================================
-# Deploy Only Script (Skips Secrets Creation)
-# Assumes secrets already exist in the cluster
+# Deploy with Secrets Creation
+# Creates secrets from existing secrets in bemind namespace
 # ================================================================
 
 # Get the directory where this script is located
@@ -22,7 +22,7 @@ else
 fi
 
 echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║           Deploy Only (Skips Secrets Creation)                ║"
+echo "║                Deploy with Secrets Creation                   ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 
 cd "$PROJECT_ROOT"
@@ -44,18 +44,11 @@ echo "Step 2/5: Creating namespace..."
 kubectl apply -f "$PROJECT_ROOT/k8s/namespace.yaml"
 echo "✓ Namespace created"
 
-# Step 3: Verify secrets exist (but don't create them)
+# Step 3: Create secrets from existing ones
 echo ""
-echo "Step 3/5: Verifying secrets exist..."
-if ! kubectl get secret bemind-secrets -n bemindindexer >/dev/null 2>&1; then
-    echo "❌ Error: bemind-secrets not found in bemindindexer namespace"
-    echo "   Please create secrets first using:"
-    echo "   bash scripts/create-secrets-existing.sh"
-    echo "   or configure ~/.bemind-credentials.env and run:"
-    echo "   bash scripts/create-secrets-from-env.sh"
-    exit 1
-fi
-echo "✓ Secrets verified"
+echo "Step 3/5: Creating secrets from existing secrets in bemind namespace..."
+bash "$SCRIPT_DIR/create-bemind-secrets.sh"
+echo "✓ Secrets created"
 
 # Step 4: Apply configurations
 echo ""
