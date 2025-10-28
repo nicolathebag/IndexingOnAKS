@@ -6,13 +6,13 @@
 set -e
 
 echo "Extracting Azure OpenAI credentials..."
-kubectl get secret azure-openai-secret -n bemind -o jsonpath='{.data}' | jq -r 'to_entries[] | "\(.key | ascii_upcase | sub("-"; "_"))=\(.value | @base64d)"' > /tmp/openai.env
+kubectl get secret azure-openai-secret -n bemind -o jsonpath='{.data}' | jq -r 'to_entries[] | "AZURE_OPENAI_\(.key | ascii_upcase | sub("-"; "_"))=\(.value | @base64d)"' > /tmp/openai.env
 
 echo "Extracting Azure Search credentials..."
-kubectl get secret azure-search-secret -n bemind -o jsonpath='{.data}' | jq -r 'to_entries[] | "\(.key | ascii_upcase | sub("-"; "_"))=\(.value | @base64d)"' > /tmp/search.env
+kubectl get secret azure-search-secret -n bemind -o jsonpath='{.data}' | jq -r 'to_entries[] | "AZURE_SEARCH_\(.key | ascii_upcase | sub("-"; "_"))=\(.value | @base64d)"' > /tmp/search.env
 
 echo "Extracting Azure Storage credentials..."
-kubectl get secret azure-storage-secret -n bemind -o jsonpath='{.data}' | jq -r 'to_entries[] | "\(.key | ascii_upcase | sub("-"; "_"))=\(.value | @base64d)"' > /tmp/storage.env
+kubectl get secret azure-storage-secret -n bemind -o jsonpath='{.data}' | jq -r 'to_entries[] | "AZURE_STORAGE_\(.key | ascii_upcase | sub("-"; "_"))=\(.value | @base64d)"' > /tmp/storage.env
 
 echo "Extracting JWT_SECRET..."
 kubectl get secret api-secrets -n bemind -o jsonpath='{.data.JWT_SECRET}' | base64 -d > /tmp/jwt.env
