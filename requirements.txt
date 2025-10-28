@@ -1,5 +1,5 @@
 # ================================================================
-# BeMind Production Requirements
+# Production Requirements
 # Pinned versions for reproducibility
 # ================================================================
 

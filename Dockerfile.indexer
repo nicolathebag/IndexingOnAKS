@@ -1,6 +1,6 @@
 # filepath: Dockerfile.indexer
 # ================================================================
-# BeMind Indexer - Production Dockerfile
+# Indexer - Production Dockerfile
 # Optimized for batch processing jobs
 # ================================================================
 
@@ -28,9 +28,9 @@ RUN python -m venv /opt/venv && \
 # Stage 2: Runtime image
 FROM python:3.11-slim
 
-LABEL maintainer="BeMind Team"
+LABEL maintainer="Development Team"
 LABEL version="1.0"
-LABEL description="BeMind Indexer for processing documents and creating search indices"
+LABEL description="Indexer for processing documents and creating search indices"
 
 WORKDIR /app
 
