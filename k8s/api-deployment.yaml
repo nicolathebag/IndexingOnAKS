@@ -60,7 +60,7 @@ spec:
       
       containers:
         - name: api
-          image: devbemindcontainerregistryse.azurecr.io/bemind-api:v1.0.0
+          image: devbemindcontainerregistryse.azurecr.io/bemind-api:v1.0.2
           imagePullPolicy: Always
           
           # Use gunicorn for Flask (WSGI)
