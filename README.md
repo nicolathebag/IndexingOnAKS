@@ -280,13 +280,13 @@ bash scripts/deploy-api.sh
 
 ```bash
 # Check pod status
-kubectl get pods -n default -l app=bemind-api
+kubectl get pods -n bemindindexer -l app=bemind-api
 
 # Check service
-kubectl get svc bemind-api-service -n default
+kubectl get svc bemind-api-service -n bemindindexer
 
 # View logs
-kubectl logs -l app=bemind-api -n default --tail=50
+kubectl logs -l app=bemind-api -n bemindindexer --tail=50
 ```
 
 ## 📚 Deployment Guide
@@ -371,7 +371,7 @@ Get external IP:
 az aks get-credentials --resource-group YOUR_RESOURCE_GROUP --name YOUR_AKS_CLUSTER --overwrite-existing
 
 # Then get the external IP (LoadBalancer is internet-accessible by default)
-kubectl get svc bemind-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+kubectl get svc bemind-api-service -n bemindindexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 
 **Note:** The Azure Load Balancer created by the LoadBalancer service is configured to accept traffic from anywhere on the internet (0.0.0.0/0). No additional firewall rules or network security groups are required for basic internet access.
@@ -583,7 +583,7 @@ See the [Testing Guide](#complete-test-example) below for detailed test scenario
 
 #### Test Health Endpoint
 ```bash
-EXTERNAL_IP=$(kubectl get svc bemind-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+EXTERNAL_IP=$(kubectl get svc bemind-api-service -n bemindindexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 curl http://${EXTERNAL_IP}:5002/health
 ```
 
@@ -600,7 +600,7 @@ curl -X POST http://${EXTERNAL_IP}:5002/api/jobs \
 
 #### Port Forward for Local Testing
 ```bash
-kubectl port-forward svc/bemind-api-service 8080:5002 -n default
+kubectl port-forward svc/bemind-api-service 8080:5002 -n bemindindexer
 
 # Test locally
 curl http://localhost:8080/health
@@ -650,13 +650,13 @@ All Tests Passed! ✓
 
 ```bash
 # All API pods
-kubectl logs -l app=bemind-api -n default --tail=100 --follow
+kubectl logs -l app=bemind-api -n bemindindexer --tail=100 --follow
 
 # Specific pod
-kubectl logs <pod-name> -n default
+kubectl logs <pod-name> -n bemindindexer
 
 # Previous pod instance (if crashed)
-kubectl logs <pod-name> -n default --previous
+kubectl logs <pod-name> -n bemindindexer --previous
 ```
 
 ### Check Resource Usage
@@ -666,27 +666,27 @@ kubectl logs <pod-name> -n default --previous
 kubectl top nodes
 
 # Pod resources
-kubectl top pods -n default -l app=bemind-api
+kubectl top pods -n bemindindexer -l app=bemind-api
 
 # HPA status
-kubectl get hpa -n default --watch
+kubectl get hpa -n bemindindexer --watch
 ```
 
 ### Debugging
 
 ```bash
 # Describe pod for events
-kubectl describe pod <pod-name> -n default
+kubectl describe pod <pod-name> -n bemindindexer
 
 # Describe deployment
-kubectl describe deployment bemind-api -n default
+kubectl describe deployment bemind-api -n bemindindexer
 
 # Check secrets
-kubectl get secrets -n default
-kubectl describe secret bemind-secrets -n default
+kubectl get secrets -n bemindindexer
+kubectl describe secret bemind-secrets -n bemindindexer
 
 # Execute into pod
-kubectl exec -it <pod-name> -n default -- /bin/bash
+kubectl exec -it <pod-name> -n bemindindexer -- /bin/bash
 ```
 
 ### Common Issues
@@ -694,34 +694,34 @@ kubectl exec -it <pod-name> -n default -- /bin/bash
 #### Pods not starting
 ```bash
 # Check events
-kubectl get events -n default --sort-by='.lastTimestamp'
+kubectl get events -n bemindindexer --sort-by='.lastTimestamp'
 
 # Check image pull
-kubectl describe pod <pod-name> -n default | grep -A 10 "Events:"
+kubectl describe pod <pod-name> -n bemindindexer | grep -A 10 "Events:"
 ```
 
 #### Service not accessible
 ```bash
 # Check service endpoints
-kubectl get endpoints bemind-api-service -n default
+kubectl get endpoints bemind-api-service -n bemindindexer
 
 # Check load balancer
-kubectl get svc bemind-api-service -n default
+kubectl get svc bemind-api-service -n bemindindexer
 
 # Check network policies
-kubectl get networkpolicies -n default
+kubectl get networkpolicies -n bemindindexer
 ```
 
 #### Job failures
 ```bash
 # List jobs
-kubectl get jobs -n default
+kubectl get jobs -n bemindindexer
 
 # Check job status
-kubectl describe job <job-name> -n default
+kubectl describe job <job-name> -n bemindindexer
 
 # View pod logs
-kubectl logs -l job-name=<job-name> -n default
+kubectl logs -l job-name=<job-name> -n bemindindexer
 ```
 
 ## 🗑️ Cleanup
@@ -758,11 +758,11 @@ This removes all tracked resources including:
 
 ```bash
 # Delete specific resources
-kubectl delete deployment bemind-api -n default
-kubectl delete service bemind-api-service -n default
-kubectl delete hpa bemind-api-hpa -n default
-kubectl delete configmap bemind-config -n default
-kubectl delete secret bemind-secrets -n default
+kubectl delete deployment bemind-api -n bemindindexer
+kubectl delete service bemind-api-service -n bemindindexer
+kubectl delete hpa bemind-api-hpa -n bemindindexer
+kubectl delete configmap bemind-config -n bemindindexer
+kubectl delete secret bemind-secrets -n bemindindexer
 
 # Delete namespace (removes everything)
 kubectl delete namespace default  # Be careful with default namespace!
@@ -906,9 +906,9 @@ Optimize job performance:
 ### Getting Help
 
 1. Check the [Troubleshooting](#monitoring--troubleshooting) section
-2. Review logs: `kubectl logs -l app=bemind-api -n default --tail=100`
+2. Review logs: `kubectl logs -l app=bemind-api -n bemindindexer --tail=100`
 3. Check Azure Portal for service health
-4. Review Kubernetes events: `kubectl get events -n default --sort-by='.lastTimestamp'`
+4. Review Kubernetes events: `kubectl get events -n bemindindexer --sort-by='.lastTimestamp'`
 
 ### Contributing
 

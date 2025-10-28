@@ -105,15 +105,15 @@ if [[ "$AZURE_OPENAI_KEY" == "placeholder-openai-key" ]]; then
 fi
 
 # Check if secrets already exist (with timeout)
-if timeout 10 kubectl get secret bemind-secrets -n default > /dev/null 2>&1; then
+if timeout 10 kubectl get secret bemind-secrets -n bemindindexer > /dev/null 2>&1; then
     echo -e "${YELLOW}Secret 'bemind-secrets' already exists. Deleting and recreating...${NC}"
-    kubectl delete secret bemind-secrets -n default --timeout=10s || echo "Failed to delete existing secret"
+    kubectl delete secret bemind-secrets -n bemindindexer --timeout=10s || echo "Failed to delete existing secret"
 fi
 
 # Create secret with actual values from credentials file
 echo -e "${YELLOW}Creating secret 'bemind-secrets'...${NC}"
 kubectl create secret generic bemind-secrets \
-    -n default \
+    -n bemindindexer \
     --from-literal=AZURE_OPENAI_ENDPOINT="${OPENAI_ENDPOINT}" \
     --from-literal=AZURE_OPENAI_API_KEY="${AZURE_OPENAI_KEY}" \
     --from-literal=AZURE_OPENAI_API_VERSION="${OPENAI_API_VERSION}" \
@@ -145,27 +145,27 @@ kubectl apply -f "${SCRIPT_DIR}/../k8s/api-deployment.yaml"
 
 # Step 9: Wait for rollout
 echo -e "${YELLOW}Step 9: Waiting for deployment to complete...${NC}"
-if ! kubectl rollout status deployment/bemind-api -n default --timeout=5m; then
+if ! kubectl rollout status deployment/bemind-api -n bemindindexer --timeout=5m; then
     echo -e "${YELLOW}Warning: Deployment rollout did not complete in time${NC}"
-    echo -e "${YELLOW}Check status with: kubectl get pods -n default -l app=bemind-api${NC}"
+    echo -e "${YELLOW}Check status with: kubectl get pods -n bemindindexer -l app=bemind-api${NC}"
 fi
 
 # Step 10: Check deployment status
 echo -e "${YELLOW}Step 10: Checking deployment status...${NC}"
 echo -e "${GREEN}Pods:${NC}"
-kubectl get pods -n default -l app=bemind-api || echo "Could not get pods"
+kubectl get pods -n bemindindexer -l app=bemind-api || echo "Could not get pods"
 
 echo -e "${GREEN}Service:${NC}"
-kubectl get svc -n default -l app=bemind-api || echo "Could not get service"
+kubectl get svc -n bemindindexer -l app=bemind-api || echo "Could not get service"
 
 echo -e "${GREEN}HPA:${NC}"
-kubectl get hpa -n default || echo "Could not get HPA"
+kubectl get hpa -n bemindindexer || echo "Could not get HPA"
 
 # Step 11: Get pod logs (last 10 lines)
 echo -e "${YELLOW}Step 11: Recent pod logs:${NC}"
-POD_NAME=$(kubectl get pods -n default -l app=bemind-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+POD_NAME=$(kubectl get pods -n bemindindexer -l app=bemind-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
 if [[ -n "$POD_NAME" ]]; then
-    kubectl logs "$POD_NAME" -n default --tail=10 2>/dev/null || echo "No logs available yet"
+    kubectl logs "$POD_NAME" -n bemindindexer --tail=10 2>/dev/null || echo "No logs available yet"
 else
     echo "No pods found yet"
 fi
@@ -191,12 +191,12 @@ echo -e "${GREEN}✓ Resource tracking saved to: $TRACKING_FILE${NC}"
 echo ""
 
 # Get service endpoint
-SERVICE_IP=$(kubectl get svc bemind-api-service -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "Pending...")
+SERVICE_IP=$(kubectl get svc bemind-api-service -n bemindindexer -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "Pending...")
 if [[ "$SERVICE_IP" != "Pending..." ]]; then
     echo -e "${GREEN}API Service Endpoint: http://${SERVICE_IP}:5002${NC}"
 else
     echo -e "${YELLOW}Service IP is still pending. Run this to check later:${NC}"
-    echo -e "${YELLOW}kubectl get svc bemind-api-service -n default${NC}"
+    echo -e "${YELLOW}kubectl get svc bemind-api-service -n bemindindexer${NC}"
 fi
 
 echo ""

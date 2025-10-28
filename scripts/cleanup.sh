@@ -62,31 +62,31 @@ echo -e "${YELLOW}Deleting BeMind resources from default namespace...${NC}"
 
 # Delete HPA
 echo -e "${YELLOW}Deleting HorizontalPodAutoscaler...${NC}"
-kubectl delete hpa bemind-api-hpa -n default --ignore-not-found=true
+kubectl delete hpa bemind-api-hpa -n bemindindexer --ignore-not-found=true
 
 # Delete Deployment
 echo -e "${YELLOW}Deleting Deployment...${NC}"
-kubectl delete deployment bemind-api -n default --ignore-not-found=true
+kubectl delete deployment bemind-api -n bemindindexer --ignore-not-found=true
 
 # Delete Service
 echo -e "${YELLOW}Deleting Services...${NC}"
-kubectl delete service bemind-api-service -n default --ignore-not-found=true
-kubectl delete service api-service -n default --ignore-not-found=true
+kubectl delete service bemind-api-service -n bemindindexer --ignore-not-found=true
+kubectl delete service api-service -n bemindindexer --ignore-not-found=true
 
 # Delete ConfigMap
 echo -e "${YELLOW}Deleting ConfigMaps...${NC}"
-kubectl delete configmap bemind-app-config -n default --ignore-not-found=true
+kubectl delete configmap bemind-app-config -n bemindindexer --ignore-not-found=true
 
 # Delete Secret
 echo -e "${YELLOW}Deleting Secrets...${NC}"
-kubectl delete secret my-secret -n default --ignore-not-found=true
+kubectl delete secret my-secret -n bemindindexer --ignore-not-found=true
 
 # Delete RBAC resources
 echo -e "${YELLOW}Deleting RBAC resources...${NC}"
-kubectl delete rolebinding bemind-indexer-rolebinding -n default --ignore-not-found=true
-kubectl delete role bemind-indexer-role -n default --ignore-not-found=true
-kubectl delete serviceaccount bemind-indexer-sa -n default --ignore-not-found=true
-kubectl delete serviceaccount bemind-worker -n default --ignore-not-found=true
+kubectl delete rolebinding bemind-indexer-rolebinding -n bemindindexer --ignore-not-found=true
+kubectl delete role bemind-indexer-role -n bemindindexer --ignore-not-found=true
+kubectl delete serviceaccount bemind-indexer-sa -n bemindindexer --ignore-not-found=true
+kubectl delete serviceaccount bemind-worker -n bemindindexer --ignore-not-found=true
 
 echo ""
 echo -e "${GREEN}✓ All BeMind resources deleted successfully!${NC}"
